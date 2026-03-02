@@ -1,0 +1,72 @@
+{
+  // =============================================================================
+  // tsconfig.json — TYPESCRIPT COMPILER CONFIGURATION
+  // =============================================================================
+  // PURPOSE:
+  //   TypeScript is JavaScript with "type safety" — it catches errors BEFORE
+  //   you run the code. This file tells TypeScript how to compile (translate)
+  //   your TypeScript (.ts) files into JavaScript that Node.js can understand.
+  //
+  // BEGINNER TIP:
+  //   You don't need to change this file. It's pre-configured for Playwright.
+  // =============================================================================
+  "compilerOptions": {
+    // "target": What version of JavaScript to produce. "ES2020" is modern and widely supported.
+    "target": "ES2020",
+
+    // "module": How code files reference each other. "commonjs" is standard for Node.js.
+    "module": "commonjs",
+
+    // "lib": Which built-in JavaScript features are available. "ES2020" and "DOM" cover everything we need.
+    "lib": ["ES2020", "DOM"],
+
+    // "strict": Turn on ALL strict type-checking rules. Catches the most bugs. Recommended!
+    "strict": true,
+
+    // "esModuleInterop": Allows easier importing of common JavaScript libraries.
+    "esModuleInterop": true,
+
+    // "resolveJsonModule": Allows importing .json files directly in TypeScript.
+    "resolveJsonModule": true,
+
+    // "outDir": Where to put the compiled JavaScript files.
+    "outDir": "./dist",
+
+    // "rootDir": Where your TypeScript source files live.
+    "rootDir": "./",
+
+    // "baseUrl": The root folder for path shortcuts.
+    "baseUrl": "./",
+
+    // "paths": Shortcuts so you can write "@utils/..." instead of "../../utils/..."
+    "paths": {
+      "@utils/*": ["utils/*"],
+      "@pages/*": ["pages/*"],
+      "@config/*": ["config/*"]
+    },
+
+    // "sourceMap": Creates mapping files so error messages point to your .ts files (not compiled .js)
+    "sourceMap": true,
+
+    // "declaration": Generate type definition files (.d.ts) alongside compiled JS.
+    "declaration": true,
+
+    // "skipLibCheck": Skip type-checking of library files (speeds up compilation).
+    "skipLibCheck": true
+  },
+
+  // "include": Which files TypeScript should compile.
+  "include": [
+    "tests/**/*.ts",
+    "pages/**/*.ts",
+    "utils/**/*.ts",
+    "config/**/*.ts",
+    "playwright.config.ts"
+  ],
+
+  // "exclude": Which files/folders to SKIP.
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

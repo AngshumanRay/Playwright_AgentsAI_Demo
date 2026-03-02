@@ -1,0 +1,34 @@
+# =============================================================================
+# .gitignore — FILES TO EXCLUDE FROM GIT (SOURCE CONTROL)
+# =============================================================================
+# PURPOSE:
+#   Git is a tool that saves versions of your code.
+#   This file tells Git: "IGNORE these files — don't save them."
+#
+# WHY THIS MATTERS:
+#   - .env contains secret passwords → must NEVER be shared
+#   - node_modules contains thousands of library files → no need to share them
+#   - test-results contain screenshots/videos → can be large, usually not shared
+# =============================================================================
+
+# Secret credentials — NEVER commit this!
+.env
+
+# Libraries installed by npm (can be re-installed with "npm install")
+node_modules/
+
+# Playwright test output files (screenshots, videos, traces)
+test-results/
+playwright-report/
+
+# TypeScript compiled output
+dist/
+
+# macOS system files
+.DS_Store
+
+# IDE settings (optional — some teams share these)
+.vscode/settings.json
+
+# Playwright MCP tool logs (auto-generated, not needed in repo)
+.playwright-mcp/
