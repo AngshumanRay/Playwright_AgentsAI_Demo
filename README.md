@@ -16,11 +16,14 @@
 | **[WRITE_A_TEST.md](WRITE_A_TEST.md)** | Copy-paste guide to write your first test | **Non-technical users — read this next** |
 | **[CAPABILITIES.md](CAPABILITIES.md)** | All framework features explained in plain English | New team members / beginners |
 | **[WALKTHROUGH.md](WALKTHROUGH.md)** | Step-by-step XRAY flow with diagrams | Anyone learning the XRAY integration |
+| **[AI_ASSISTED_TESTING.md](AI_ASSISTED_TESTING.md)** | Using Playwright MCP + Claude/OpenAI to test with AI | **QA engineers wanting AI-powered testing** |
 | **[docs/RUN_REPORT_*.md](docs/)** | Auto-generated run reports | Anyone reviewing past test runs |
 
 > 💡 **Not a developer?** Read this README for setup, then go straight to **[WRITE_A_TEST.md](WRITE_A_TEST.md)** — it explains how to write a test with zero coding knowledge.
 > 
 > 💡 **Developer?** After setup, read `CAPABILITIES.md` to see everything the framework can do.
+> 
+> 🤖 **Want AI to help you test?** Read **[AI_ASSISTED_TESTING.md](AI_ASSISTED_TESTING.md)** — it shows how to use Claude Opus 4.6, OpenAI Codex, and Playwright MCP to explore, validate, debug, and generate tests.
 
 ---
 
