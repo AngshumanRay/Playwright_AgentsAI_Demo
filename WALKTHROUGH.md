@@ -75,16 +75,25 @@ XRAY adds three new ticket types:
 │ One specific    │    │ A folder/list   │    │ A report card   │
 │ test scenario   │    │ grouping test   │    │ showing results │
 │                 │    │ cases together  │    │ of a test run   │
-│ "Verify login   │    │                 │    │                 │
-│  works with     │    │ Contains:       │    │ PROJ-101: PASS  │
-│  valid creds"   │    │  - PROJ-101     │    │ PROJ-102: FAIL  │
-│                 │    │  - PROJ-102     │    │ PROJ-103: TODO  │
+│                 │    │                 │    │                 │
+│ "Verify login   │    │ Contains:       │    │ PROJ-101: PASS  │
+│  works with     │    │  - PROJ-101     │    │ PROJ-102: FAIL  │
+│  valid creds"   │    │  - PROJ-102     │    │ PROJ-103: TODO  │
 │                 │    │  - PROJ-103     │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
        ↑                      ↑                       ↑
-  individual             collection of           results for
-  test script            test cases              one test run
+  Created by QA          Created by QA           Created by
+  MANUALLY in JIRA       MANUALLY in JIRA        PLAYWRIGHT
+                                                 AUTOMATICALLY
 ```
+
+> **⚠️ KEY RULE: Test Cases and Test Sets are MANUAL. Test Executions onward are AUTOMATIC.**
+>
+> QA creates Test Cases and Test Sets **manually in JIRA** (one-time setup).
+> Playwright creates Test Executions, runs tests, marks PASS/FAIL, and uploads
+> screenshots **automatically** every time you run `npm test`.
+> See **[CAPABILITIES.md → JIRA XRAY Integration](CAPABILITIES.md#-jira-xray-integration)**
+> for the complete step-by-step setup guide.
 
 ### What is Playwright?
 Playwright is a tool that **controls a web browser like a robot**.
@@ -102,6 +111,31 @@ Without Playwright (manual):        With Playwright (automated):
 6. Human checks if it worked        6. Code checks if it worked
 7. Human writes down the result     7. Code saves result automatically
                                     8. Code reports to JIRA XRAY
+```
+
+### What's Manual vs What's Automated?
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  ✋ MANUAL (QA does this in JIRA web UI — one time setup):               │
+│                                                                          │
+│     1. Create Test Cases in XRAY      (PROJ-101, PROJ-102, ...)         │
+│     2. Create a Test Set in XRAY      (PROJ-456)                        │
+│     3. Add Test Cases to the Test Set                                    │
+│     4. Put XRAY_TEST_SET_ID=PROJ-456 in .env                           │
+│                                                                          │
+│  🤖 AUTOMATED (Playwright does this every time you run npm test):        │
+│                                                                          │
+│     5. Authenticates with JIRA                                           │
+│     6. Reads Test Cases from the Test Set                                │
+│     7. Creates a Test Execution ticket (PROJ-789)                        │
+│     8. Links Test Cases to the Execution                                 │
+│     9. Runs tests in browser (UI) or via HTTP (API)                      │
+│    10. Records PASS/FAIL for each test                                   │
+│    11. Uploads results + failure screenshots to JIRA                     │
+│    12. Generates the HTML execution report                               │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -781,6 +815,25 @@ When tests run, the terminal shows messages like this. Here's what each means:
 
 ## ❓ Section 12 — Frequently Asked Questions
 
+**Q: What do I do MANUALLY vs what does Playwright do AUTOMATICALLY?**
+> **You do manually (one time):**
+> 1. Create Test Cases in JIRA XRAY (e.g., PROJ-101, PROJ-102)
+> 2. Create a Test Set in JIRA XRAY (e.g., PROJ-456)
+> 3. Add the Test Cases to the Test Set
+> 4. Put the Test Set ID in `.env` (`XRAY_TEST_SET_ID=PROJ-456`)
+> 5. Write the Playwright test with the annotation: `annotation: { type: 'xray', description: 'PROJ-101' }`
+>
+> **Playwright does automatically (every `npm test`):**
+> 1. Authenticates with JIRA
+> 2. Fetches test cases from the Test Set
+> 3. Creates a new Test Execution ticket in JIRA
+> 4. Runs all tests
+> 5. Uploads PASS/FAIL results to JIRA
+> 6. Attaches failure screenshots to JIRA
+> 7. Generates the HTML report
+
+---
+
 **Q: I'm not a developer. Do I need to write code?**
 > No! Once the framework is set up by a developer, your job is to:
 > 1. Maintain test cases in JIRA XRAY (no code needed)
@@ -799,14 +852,17 @@ When tests run, the terminal shows messages like this. Here's what each means:
 ---
 
 **Q: How do I add a new test for a new XRAY test case?**
-> 1. Create the test case in JIRA XRAY (e.g., PROJ-110)
-> 2. Add PROJ-110 to your Test Set (PROJ-456) in JIRA
-> 3. Open `tests/login.test.ts` (or create a new `.test.ts` file)
-> 4. Copy an existing test block and change:
->    - The test description
+> 1. **In JIRA (manual):** Create the test case (e.g., PROJ-110) with Issue Type = "Test"
+> 2. **In JIRA (manual):** Open your Test Set (PROJ-456) and add PROJ-110 to it
+> 3. **In code:** Open `tests/login.test.ts` (or create a new `.test.ts` file)
+> 4. **In code:** Copy an existing test block and change:
+>    - The test description (e.g., `'TC07: My new scenario'`)
 >    - The annotation key to `'PROJ-110'`
 >    - The test steps to match what PROJ-110 tests
-> 5. Run `npm test` — PROJ-110 will now report to JIRA automatically
+> 5. **Run:** `npm test` — PROJ-110 will now report to JIRA automatically
+>
+> See **[CAPABILITIES.md → JIRA XRAY Integration](CAPABILITIES.md#-jira-xray-integration)**
+> for the complete step-by-step guide with screenshots and best practices.
 
 ---
 
@@ -850,13 +906,16 @@ When tests run, the terminal shows messages like this. Here's what each means:
 |---------|-----------|
 | Can't log into JIRA | IT / JIRA admin |
 | API token not working | Generate a new one in JIRA profile settings |
+| Need to create new Test Cases in XRAY | QA lead — create them in JIRA with Issue Type = "Test" |
+| Need to create or update a Test Set | QA lead — create/update in JIRA with Issue Type = "Test Set" |
 | Test case key is wrong in annotation | QA lead — check the JIRA ticket ID |
-| Test is failing but it shouldn't be | Developer — look at screenshot in JIRA |
+| Test is failing but it shouldn't be | Developer — look at screenshot in JIRA or HTML report |
 | Need a new page object (new page to test) | Developer — create new file in `pages/` |
 | XRAY Test Set is wrong | QA lead — check `XRAY_TEST_SET_ID` in `.env` |
+| New sprint starting | QA lead — update `XRAY_SPRINT_NUMBER` in `.env` |
 | Want to run only specific tests | Use `npm run test:login` or tags approach |
 
 ---
 
 *Last updated: 3 March 2026*
-*Framework version: 1.1.0 — 6 tests (3 UI + 3 API), full HTML report, Slack removed*
+*Framework version: 1.2.0 — 6 tests (3 UI + 3 API), full HTML report, comprehensive XRAY integration*

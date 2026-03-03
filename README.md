@@ -185,6 +185,7 @@ Then open `.env` and fill in your real values (see next section).
 Open the `.env` file and fill in your details:
 
 ```env
+# ──── JIRA CONNECTION ────
 # Your JIRA instance URL
 JIRA_BASE_URL=https://your-company.atlassian.net
 
@@ -195,15 +196,18 @@ JIRA_USERNAME=your-email@company.com
 # Get it from: https://id.atlassian.com/manage-profile/security/api-tokens
 JIRA_API_TOKEN=your-api-token-here
 
+# ──── XRAY SETTINGS ────
 # Your JIRA project key (visible in ticket numbers like "PROJ-123" → key is "PROJ")
 XRAY_PROJECT_KEY=PROJ
 
-# The XRAY Test Set ticket ID (the collection of tests to run)
+# The XRAY Test Set ticket ID — created MANUALLY by QA in JIRA (Issue Type: "Test Set")
+# This groups your test cases together. See CAPABILITIES.md for the full setup guide.
 XRAY_TEST_SET_ID=PROJ-456
 
-# Current Sprint number
+# Current Sprint number (update this at the start of each sprint)
 XRAY_SPRINT_NUMBER=5
 
+# ──── APP UNDER TEST ────
 # The URL of the application you're testing
 BASE_URL=https://your-app.com
 ```
@@ -320,7 +324,23 @@ Opens Playwright's built-in trace viewer — great for replaying individual test
 
 ## How the XRAY Integration Works
 
-Here's the end-to-end flow explained simply:
+### The Manual-vs-Automated Boundary
+
+```
+✋ QA does MANUALLY (one-time in JIRA):        🤖 Playwright does AUTOMATICALLY (every run):
+──────────────────────────────────────          ──────────────────────────────────────────────
+1. Create Test Cases in XRAY (PROJ-101...)     5. Authenticates with JIRA
+2. Create a Test Set (PROJ-456)                6. Fetches test cases from the Test Set
+3. Add Test Cases to the Test Set              7. Creates a Test Execution (PROJ-789)
+4. Put XRAY_TEST_SET_ID=PROJ-456 in .env       8. Runs tests + captures PASS/FAIL
+                                                9. Uploads results + screenshots to JIRA
+                                               10. Generates HTML report
+```
+
+> **For the complete step-by-step XRAY setup guide** (with JIRA screenshots, API endpoints,
+> best practices, and sprint checklist), see **[CAPABILITIES.md → JIRA XRAY Integration](CAPABILITIES.md#-jira-xray-integration)**.
+
+### End-to-End Flow Diagram
 
 ```
 YOUR .env FILE
@@ -361,6 +381,17 @@ HTML REPORT (reports/execution-report-2026-03-03.html):
     ├─ Summary: 6 tests | 5 passed | 1 failed | 3 UI | 3 API
     ├─ Charts: pass rate, test types, duration, a11y issues
     └─ Per-test: status badge, type badge, start time, step log, screenshot
+```
+
+### Each Sprint Checklist
+
+```
+□ (If needed) Create new Test Cases in JIRA for new features
+□ (If needed) Update the Test Set with new/removed test cases
+□ Update .env: XRAY_SPRINT_NUMBER=6 (and XRAY_TEST_SET_ID if changed)
+□ Write new Playwright tests with annotation: { type: 'xray', description: 'PROJ-NEW' }
+□ Run: npm test
+□ Review: Open JIRA → find the new Test Execution → review results
 ```
 
 > **JIRA not configured?** No problem. Set placeholder values in `.env` and tests run
@@ -552,3 +583,4 @@ npm run test:debug
 *Last updated: 3 March 2026*
 *Framework: Playwright + JIRA XRAY + Multi-Utility Architecture*
 *Tests: 3 UI (login) + 3 API (REST) = 6 total*
+*XRAY: Test Set = manual, Test Execution onward = automated by Playwright*

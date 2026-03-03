@@ -17,6 +17,16 @@
 //     - Seeding test data in a database
 //     - Verifying all utility connections are healthy
 //
+// MANUAL vs AUTOMATED (XRAY):
+//   The Test Cases and Test Set must already exist in JIRA — QA creates those
+//   MANUALLY (see CAPABILITIES.md → JIRA XRAY Integration, Steps 1–4).
+//   This file then AUTOMATICALLY:
+//     - Authenticates with JIRA
+//     - Fetches test cases from the Test Set (reads what QA set up)
+//     - Creates a new Test Execution ticket (the "report card")
+//     - Links all test cases to the execution
+//     - Saves the execution key for later (global teardown will upload results)
+//
 // CURRENT UTILITIES MANAGED HERE:
 //   🔹 JIRA XRAY  — Fetch test cases, create Test Execution (skipped if not configured)
 //   🔹 Database   — Seed test data before tests run (skipped if DB_ENABLED=false)

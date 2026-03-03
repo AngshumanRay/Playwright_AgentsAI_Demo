@@ -112,48 +112,366 @@ BASE_URL=https://your-app.com
 
 ### What is it?
 JIRA is where your team tracks work. XRAY is a plugin that adds test management.
-This integration connects your automated tests to JIRA so that:
-- Test cases are pulled from JIRA automatically
-- A Test Execution is created in JIRA for each run
-- PASS/FAIL results + screenshots are pushed back to JIRA
+This integration connects your automated Playwright tests to JIRA XRAY so that
+test results appear directly inside your JIRA project — no manual work needed after initial setup.
 
-### What can it do?
+---
 
-| Action | When | What Happens |
-|--------|------|-------------|
-| Fetch test cases | Before tests | Reads your Test Set (e.g., PROJ-456) and gets all test case IDs |
-| Create Test Execution | Before tests | Creates a new JIRA ticket (e.g., PROJ-789) to hold results |
-| Save PASS/FAIL | After each test | Records whether each test passed or failed |
-| Upload to JIRA | After all tests | Sends all results to JIRA so your team can see them |
-| Attach screenshots | After all tests | Failed tests get their screenshot attached in JIRA |
+### 🔑 The Most Important Rule to Understand
 
-### How to enable it?
-Fill in these values in your `.env` file:
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                                                                          │
+│   YOU DO MANUALLY (one-time, in JIRA web UI):                            │
+│   ──────────────────────────────────────────                             │
+│     1. Create Test Cases in XRAY     (PROJ-101, PROJ-102, PROJ-103...)  │
+│     2. Create a Test Set in XRAY     (PROJ-456) to group them           │
+│     3. Add your Test Cases to the Test Set                               │
+│     4. Put XRAY_TEST_SET_ID=PROJ-456 in your .env file                  │
+│                                                                          │
+│   PLAYWRIGHT DOES AUTOMATICALLY (every time you run npm test):           │
+│   ────────────────────────────────────────────────────────────           │
+│     5. Reads Test Cases from the Test Set (via XRAY API)                │
+│     6. Creates a new Test Execution ticket (PROJ-789) in JIRA           │
+│     7. Links all Test Cases to the Execution                             │
+│     8. Runs the tests in the browser (or via API)                        │
+│     9. Saves PASS/FAIL for each test case                                │
+│    10. Uploads results to XRAY (PROJ-101 → PASS, PROJ-102 → FAIL)      │
+│    11. Attaches failure screenshots as evidence in JIRA                  │
+│    12. Generates the HTML execution report locally                       │
+│                                                                          │
+│   YOU NEVER NEED TO:                                                     │
+│   ──────────────────                                                     │
+│     ❌ Create Test Executions manually                                   │
+│     ❌ Mark tests as PASS/FAIL manually                                  │
+│     ❌ Upload screenshots manually                                       │
+│     ❌ Change any code when a new sprint starts (just update .env)       │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 📐 Step-by-Step: Setting Up XRAY from Scratch (Complete Guide)
+
+Follow these steps in order. Steps 1–4 are done **once** in JIRA. After that, everything is automated.
+
+---
+
+#### 🟢 Step 1: Create Test Cases in JIRA XRAY (Manual — One Time)
+
+Open your JIRA project and create XRAY Test Case tickets for each scenario you want to test.
+
+**How to create a Test Case:**
+1. In JIRA, click **Create** (top menu bar)
+2. Set **Issue Type** to **Test** (XRAY adds this type)
+3. Fill in:
+   - **Summary**: A clear one-sentence description (e.g., "Verify user can log in with valid credentials")
+   - **Steps**: The manual steps a human would follow (XRAY shows a table for steps)
+   - **Labels** (optional): Add labels like `smoke`, `regression`, `sprint5` for filtering
+4. Click **Create**
+5. Note down the issue key (e.g., `PROJ-101`)
+
+**Repeat for each test scenario:**
+```
+PROJ-101  →  "Verify user can log in with valid credentials"
+PROJ-102  →  "Verify wrong password shows an error message"
+PROJ-103  →  "Verify empty fields shows validation errors"
+PROJ-104  →  "Verify GET /posts/1 returns status 200 and valid post data"
+PROJ-105  →  "Verify POST /posts creates a new resource with status 201"
+PROJ-106  →  "Verify GET /users/1 returns user data with address"
+```
+
+> 💡 **Best Practice:** Name your test cases with a clear action + expected result.
+> Use prefixes like `TC01:`, `TC02:` in the Playwright test name (not in JIRA).
+> Keep the JIRA summary clean — the framework uses the Playwright test name in the report.
+
+---
+
+#### 🟢 Step 2: Create a Test Set in JIRA XRAY (Manual — One Time)
+
+A Test Set is simply a **folder** that groups related Test Cases together.
+
+**How to create a Test Set:**
+1. In JIRA, click **Create**
+2. Set **Issue Type** to **Test Set** (XRAY adds this type)
+3. Fill in:
+   - **Summary**: A descriptive name (e.g., "Sprint 5 — Login & API Tests")
+4. Click **Create**
+5. Note down the issue key (e.g., `PROJ-456`)
+
+---
+
+#### 🟢 Step 3: Add Test Cases to the Test Set (Manual — One Time)
+
+1. Open your new Test Set ticket (e.g., `PROJ-456`) in JIRA
+2. Scroll to the **Tests** section (added by XRAY)
+3. Click **Add** → search for each test case key → add them:
+   - PROJ-101, PROJ-102, PROJ-103, PROJ-104, PROJ-105, PROJ-106
+4. Now your Test Set contains all 6 test cases
+
+```
+Test Set: PROJ-456 ("Sprint 5 — Login & API Tests")
+├── PROJ-101  "Verify user can log in with valid credentials"
+├── PROJ-102  "Verify wrong password shows an error message"
+├── PROJ-103  "Verify empty fields shows validation errors"
+├── PROJ-104  "Verify GET /posts/1 returns status 200"
+├── PROJ-105  "Verify POST /posts creates a new resource"
+└── PROJ-106  "Verify GET /users/1 returns user data"
+```
+
+> 💡 **Best Practice:** Create one Test Set per sprint or per feature.
+> When a new sprint starts, create a new Test Set or update the existing one.
+> The old Test Sets (and their Executions) stay in JIRA as history.
+
+---
+
+#### 🟢 Step 4: Configure Your `.env` File (Manual — One Time per Sprint)
+
+Open your `.env` file and set the XRAY values:
 
 ```env
+# ──── JIRA CONNECTION (get these from your JIRA admin) ────
 JIRA_BASE_URL=https://your-company.atlassian.net
 JIRA_USERNAME=your-email@company.com
-JIRA_API_TOKEN=your-api-token          ← Get this from Atlassian account settings
-XRAY_PROJECT_KEY=PROJ                  ← The short code in your ticket numbers
-XRAY_TEST_SET_ID=PROJ-456             ← The Test Set containing your test cases
-XRAY_SPRINT_NUMBER=5                   ← Current sprint number
+JIRA_API_TOKEN=your-api-token-here
+
+# ──── XRAY SETTINGS ────
+XRAY_PROJECT_KEY=PROJ              # The short code in your ticket numbers
+XRAY_TEST_SET_ID=PROJ-456         # The Test Set you just created (Step 2)
+XRAY_SPRINT_NUMBER=5               # Current sprint number (update each sprint)
 ```
 
-### How do I link a test to an XRAY test case?
-Add this one line inside your test:
+**How to get a JIRA API Token:**
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Click **Create API token** → give it a name (e.g., "Playwright Automation")
+3. Copy the token → paste it as `JIRA_API_TOKEN` in `.env`
+
+> 💡 **Best Practice per Sprint:**
+> At the start of each sprint, update TWO things in `.env`:
+> 1. `XRAY_SPRINT_NUMBER` → increment by 1
+> 2. `XRAY_TEST_SET_ID` → update if you created a new Test Set for this sprint
+
+---
+
+#### 🟢 Step 5: Link Each Playwright Test to Its XRAY Test Case (One Time per Test)
+
+In your Playwright test file, each test has an **annotation** that says which
+XRAY test case it represents. This is the bridge between your code and JIRA.
 
 ```typescript
-test('My test name', {
-  annotation: { type: 'xray', description: 'PROJ-101' },  // ← THIS LINE
-}, async ({ page }) => {
-  // your test code here
-});
+test(
+  'TC01: Valid credentials should log the user in successfully',
+  {
+    annotation: { type: 'xray', description: 'PROJ-101' },
+    //                                        ^^^^^^^^
+    //                                        This MUST match the JIRA key
+    //                                        of the Test Case you created
+    //                                        in Step 1
+  },
+  async ({ page, xrayTestKey }) => {
+    // xrayTestKey is automatically "PROJ-101" — extracted from the annotation
+    // Your test code here...
+  }
+);
 ```
 
-That `'PROJ-101'` is the JIRA ticket ID of the test case in XRAY. Change it
-to match YOUR test case ID.
+**The mapping looks like this:**
+```
+Playwright Test File                        XRAY Test Case in JIRA
+──────────────────────────                  ─────────────────────────
+annotation: 'PROJ-101'   ←──── matches ──→  PROJ-101 in Test Set PROJ-456
+annotation: 'PROJ-102'   ←──── matches ──→  PROJ-102 in Test Set PROJ-456
+annotation: 'PROJ-103'   ←──── matches ──→  PROJ-103 in Test Set PROJ-456
+annotation: 'PROJ-104'   ←──── matches ──→  PROJ-104 in Test Set PROJ-456
+```
 
-### What if I DON'T configure JIRA?
+> ⚠️ **The annotation description MUST exactly match the JIRA test case key.**
+> `'PROJ-101'` in your code must be the same as the issue key in JIRA.
+> If they don't match, the result won't upload for that test.
+
+---
+
+#### 🟢 Step 6: Run Tests — Everything Else is Automatic (Every Run)
+
+```bash
+npm test
+```
+
+**Here's exactly what happens under the hood:**
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ PHASE 1: GLOBAL SETUP (runs ONCE before all tests)                       │
+│                                                                          │
+│  1. Framework reads .env → gets JIRA URL, credentials, Test Set ID      │
+│  2. Calls JIRA API /rest/api/3/myself → verifies credentials work       │
+│  3. Calls XRAY API /rest/raven/1.0/api/testset/PROJ-456/test            │
+│     → gets list: [PROJ-101, PROJ-102, PROJ-103, ...]                    │
+│  4. Calls XRAY API POST /rest/raven/1.0/api/testexecution               │
+│     → JIRA creates new ticket: PROJ-789                                  │
+│     → Title: "Sprint 5 — Automated Playwright Test Run [2026-03-03]"    │
+│  5. Links all 6 test cases to PROJ-789                                   │
+│     → All show status "TODO" in JIRA                                     │
+│  6. Saves executionKey="PROJ-789" to xray-state.json                     │
+│                                                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│ PHASE 2: TESTS RUN (each test independently)                             │
+│                                                                          │
+│  For EACH test:                                                          │
+│  7. Fixture reads annotation → xrayTestKey = "PROJ-101"                 │
+│  8. Test runs (browser clicks / API calls / assertions)                  │
+│  9. After test finishes:                                                 │
+│     a) Captures screenshot if FAIL                                       │
+│     b) Runs accessibility scan (axe-core) if UI test                     │
+│     c) Maps Playwright status → XRAY status:                             │
+│        "passed"     → "PASS"                                             │
+│        "failed"     → "FAIL"                                             │
+│        "timedOut"   → "FAIL"                                             │
+│        "interrupted"→ "ABORTED"                                          │
+│     d) Appends { testCaseKey, status, screenshot, error } to             │
+│        xray-state.json                                                   │
+│                                                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│ PHASE 3: GLOBAL TEARDOWN (runs ONCE after all tests)                     │
+│                                                                          │
+│  10. Reads xray-state.json → gets executionKey + all results             │
+│  11. For EACH result:                                                    │
+│      a) Calls XRAY API GET /testexecution/PROJ-789/test → finds the     │
+│         internal testRunId for this test case                             │
+│      b) Calls XRAY API PUT /testrun/{id} → updates status to PASS/FAIL  │
+│      c) If FAIL: calls XRAY API POST /testrun/{id}/attachment            │
+│         → uploads screenshot as Base64 evidence                          │
+│  12. Fetches final execution status from XRAY (confirmation)             │
+│  13. Generates HTML report → reports/execution-report-YYYY-MM-DD.html   │
+│  14. Cleans up xray-state.json for next run                              │
+│  15. Cleans up database test data (if DB configured)                     │
+│                                                                          │
+├──────────────────────────────────────────────────────────────────────────┤
+│ RESULT IN JIRA:                                                          │
+│                                                                          │
+│  PROJ-789 (Test Execution)                                               │
+│  ├── PROJ-101: ✅ PASS  (3.2s)                                          │
+│  ├── PROJ-102: ❌ FAIL  (4.1s) — screenshot attached as evidence        │
+│  ├── PROJ-103: ✅ PASS  (2.8s)                                          │
+│  ├── PROJ-104: ✅ PASS  (0.8s)                                          │
+│  ├── PROJ-105: ✅ PASS  (1.1s)                                          │
+│  └── PROJ-106: ✅ PASS  (0.6s)                                          │
+│                                                                          │
+│  Click PROJ-102 → see screenshot + error message + execution time        │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🏗️ XRAY Architecture — Which File Does What
+
+```
+.env                              ← Your JIRA credentials + Test Set ID
+    │
+    ▼
+config/environment.ts             ← Reads .env → exports config.jira.*, config.xray.*
+    │
+    ▼
+tests/global-setup.ts             ← PHASE 1: Orchestrates the full setup flow
+    │
+    ├──→ utils/jira-xray/jira-auth.ts
+    │      └─ createJiraApiClient()    → pre-configured HTTP client for JIRA API
+    │      └─ testJiraConnection()     → calls /rest/api/3/myself to verify auth
+    │
+    ├──→ utils/jira-xray/xray-test-set.ts
+    │      └─ fetchTestCasesFromTestSet()  → calls XRAY API to get test case list
+    │
+    ├──→ utils/jira-xray/xray-test-execution.ts
+    │      └─ createTestExecution()    → creates JIRA ticket of type "Test Execution"
+    │      └─ links all test cases     → sets them to "TODO" status
+    │
+    └──→ utils/jira-xray/xray-state.ts
+           └─ initializeXrayState()    → saves executionKey to xray-state.json
+    │
+    ▼
+tests/xray-test-fixture.ts       ← PHASE 2: Wraps every test with XRAY tracking
+    │
+    ├──→ Reads annotation → extracts xrayTestKey ("PROJ-101")
+    ├──→ After test: maps Playwright status → XRAY status
+    ├──→ Captures failure screenshot
+    └──→ appendTestResult() → writes to xray-state.json
+    │
+    ▼
+tests/global-teardown.ts          ← PHASE 3: Uploads all results to XRAY
+    │
+    ├──→ readXrayState()           → reads xray-state.json
+    ├──→ utils/jira-xray/xray-result-updater.ts
+    │      └─ updateMultipleTestResults()  → loops through each result
+    │      └─ updateTestCaseResult()       → PUTs status + evidence to XRAY API
+    │      └─ attachEvidenceToTestRun()    → uploads screenshot as Base64
+    │
+    ├──→ getTestExecutionStatus()  → confirmation check from XRAY
+    ├──→ generateReport()          → HTML report with charts + step logs
+    └──→ clearXrayState()          → cleanup for next run
+```
+
+---
+
+### 🏆 Best Practices for XRAY Integration
+
+| # | Best Practice | Why |
+|---|--------------|-----|
+| 1 | **Create Test Cases in JIRA first, then write the Playwright test** | The JIRA test case key (PROJ-101) is the link. If you write code first, you'll need to go back and add the annotation later. |
+| 2 | **One Playwright test = One XRAY Test Case** | If two tests report to the same XRAY key, the second result overwrites the first. |
+| 3 | **Keep XRAY test case summaries short and descriptive** | They show in JIRA dashboards. "Verify login with valid credentials" is better than "test1". |
+| 4 | **Use clear Playwright test names with TC## prefix** | `TC01: Valid credentials should log the user in` — the TC## prefix makes it easy to match to JIRA. |
+| 5 | **Update `XRAY_SPRINT_NUMBER` every sprint** | This names the Test Execution "Sprint 6 — Automated Run". Without it, executions are harder to find. |
+| 6 | **Create a new Test Set per sprint (or reuse one)** | New sprints may add or remove test cases. Update `XRAY_TEST_SET_ID` accordingly. |
+| 7 | **Never delete old Test Executions** | They are your test run history. JIRA keeps them forever so you can compare sprint-over-sprint. |
+| 8 | **Add labels to Test Cases for filtering** | Labels like `smoke`, `regression`, `login` help filter which tests to include in a Test Set. |
+| 9 | **Let the framework create Test Executions** | Never create them manually. The framework names them with the date and sprint, links test cases, and handles everything. |
+| 10 | **If JIRA is down, tests still run** | The framework detects JIRA unavailability and skips the integration. Your tests and HTML report still work. |
+
+---
+
+### 🔁 What to Do Each Sprint (Checklist)
+
+```
+□ Step 1: (If needed) Create new Test Cases in JIRA for new features
+□ Step 2: (If needed) Create a new Test Set or add new cases to the existing one
+□ Step 3: (If new tests) Write the Playwright test with the annotation:
+            annotation: { type: 'xray', description: 'PROJ-NEW' }
+□ Step 4: Update .env:
+            XRAY_SPRINT_NUMBER=6       ← new sprint number
+            XRAY_TEST_SET_ID=PROJ-XXX  ← if you created a new Test Set
+□ Step 5: Run: npm test
+□ Step 6: Open JIRA → find the new Test Execution → review results
+□ Step 7: (done — the framework did everything else automatically)
+```
+
+---
+
+### 📊 XRAY API Endpoints Used by This Framework
+
+For reference, here are the exact XRAY REST API endpoints our framework calls:
+
+| Step | HTTP Method | Endpoint | Purpose |
+|------|-------------|----------|---------|
+| Auth check | `GET` | `/rest/api/3/myself` | Verify JIRA credentials work |
+| Get Test Set | `GET` | `/rest/api/3/issue/{testSetKey}` | Fetch Test Set summary |
+| List tests in set | `GET` | `/rest/raven/1.0/api/testset/{testSetKey}/test` | Get all test case keys in the set |
+| Get test details | `GET` | `/rest/api/3/issue/{testCaseKey}` | Fetch test case summary, labels, status |
+| Get test steps | `GET` | `/rest/raven/1.0/api/test/{testCaseKey}/step` | Fetch test steps for a test case |
+| Create execution | `POST` | `/rest/raven/1.0/api/testexecution` | Create a new Test Execution JIRA ticket |
+| Link tests to exec | `POST` | `/rest/raven/1.0/api/testexecution/{execKey}/test` | Link test cases to the execution |
+| Get test runs | `GET` | `/rest/raven/1.0/api/testexecution/{execKey}/test` | Get test run IDs within the execution |
+| Update result | `PUT` | `/rest/raven/1.0/api/testrun/{testRunId}` | Set PASS/FAIL status + comment |
+| Attach evidence | `POST` | `/rest/raven/1.0/api/testrun/{testRunId}/attachment` | Upload screenshot as Base64 |
+
+> These are **XRAY Server/Data Center** endpoints. If you use **XRAY Cloud**, the endpoints
+> are different (GraphQL-based). See [XRAY Cloud docs](https://docs.getxray.app/display/XRAYCLOUD/).
+
+---
+
+### ❓ What if I DON'T Configure JIRA?
+
 Nothing breaks. You see this friendly message and tests run normally:
 
 ```
@@ -161,12 +479,18 @@ Nothing breaks. You see this friendly message and tests run normally:
    Skipping JIRA/XRAY integration — Playwright tests will still run.
 ```
 
+The HTML report is **still generated** with full results, charts, and screenshots.
+The only thing missing is the JIRA upload — results stay local only.
+
 ### Where is the code?
-- `utils/jira-xray/jira-auth.ts` — connects to JIRA
-- `utils/jira-xray/xray-test-set.ts` — fetches test cases
-- `utils/jira-xray/xray-test-execution.ts` — creates test execution
-- `utils/jira-xray/xray-result-updater.ts` — uploads results
-- `utils/jira-xray/xray-state.ts` — shared file that passes data between phases
+- `utils/jira-xray/jira-auth.ts` — JIRA API authentication (Basic Auth over HTTP)
+- `utils/jira-xray/xray-test-set.ts` — fetches Test Cases from a Test Set via XRAY API
+- `utils/jira-xray/xray-test-execution.ts` — creates Test Execution ticket, links Test Cases
+- `utils/jira-xray/xray-result-updater.ts` — uploads PASS/FAIL status + screenshot evidence
+- `utils/jira-xray/xray-state.ts` — shared JSON file that stores execution key + results between phases
+- `tests/xray-test-fixture.ts` — the Playwright fixture that automatically reports results
+- `tests/global-setup.ts` — orchestrates Phase 1 (auth → fetch → create execution)
+- `tests/global-teardown.ts` — orchestrates Phase 3 (upload results → generate report)
 
 ---
 

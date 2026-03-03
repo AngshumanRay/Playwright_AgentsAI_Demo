@@ -5,7 +5,7 @@
 
 > **You do NOT need to know:**
 > - TypeScript or any programming language
-> - What XRAY is or how it works
+> - What XRAY is or how it works (but see [CAPABILITIES.md](CAPABILITIES.md#-jira-xray-integration) if you're curious)
 > - What a database is
 > - What automation is
 > - What an API is
@@ -376,9 +376,18 @@ annotation: { type: 'xray', description: 'PROJ-101' },
 annotation: { type: 'xray', description: 'PROJ-210' },
 ```
 
+> **What is the XRAY test case ID?**
+> This is the JIRA ticket number of the Test Case that QA created **manually** in JIRA.
+> For example, if QA created a Test Case called "Verify checkout works" with key `PROJ-210`,
+> you put `'PROJ-210'` in the annotation above. This is how Playwright knows which
+> JIRA test case to report the PASS/FAIL result to.
+>
 > **Not using JIRA/XRAY yet?** Just leave it as `'PROJ-101'` or change it to
 > any label like `'TC-001'`. The test will still run fine — the ID is only
 > used if JIRA is connected.
+>
+> **Want the full XRAY setup guide?** See **[CAPABILITIES.md → JIRA XRAY Integration](CAPABILITIES.md#-jira-xray-integration)**
+> for how to create Test Cases, Test Sets, and configure everything.
 
 ---
 

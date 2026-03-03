@@ -5,6 +5,12 @@
 //   This file contains functions to update test case results in XRAY after
 //   Playwright tests have finished running.
 //
+// IMPORTANT — THIS IS FULLY AUTOMATED:
+//   This file runs automatically during global teardown. QA does not need to
+//   mark PASS/FAIL manually — Playwright uploads results for every test case,
+//   including screenshots as evidence for failures. The only manual work is
+//   the one-time setup of Test Cases and Test Sets in JIRA.
+//
 // THE BIG PICTURE — WHY DO WE NEED THIS?
 //   After Playwright runs your tests, it knows which ones passed and which failed.
 //   But JIRA doesn't know anything — it's a separate system!

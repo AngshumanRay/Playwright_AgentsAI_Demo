@@ -7,9 +7,17 @@
 // WHAT IS "GLOBAL TEARDOWN"?
 //   The counterpart to globalSetup. It runs after every single test is done.
 //   This is the perfect place to:
-//     - Upload all collected test results to XRAY
+//     - Upload all collected test results to XRAY (AUTOMATED — no manual work)
 //     - Generate the HTML execution report
 //     - Clean up test data from the database
+//
+// MANUAL vs AUTOMATED (XRAY):
+//   Everything in this file is FULLY AUTOMATED. The results collected during
+//   test runs are uploaded to JIRA XRAY automatically:
+//     - PASS/FAIL status → updated in the Test Execution
+//     - Failure screenshots → attached as evidence in JIRA
+//     - Error messages → included in the test run comment
+//   QA never needs to manually mark PASS/FAIL in JIRA.
 //
 // UTILITIES HANDLED HERE (each one skips gracefully if not configured):
 //   🔹 XRAY     — Upload PASS/FAIL results + full test names + screenshots to JIRA

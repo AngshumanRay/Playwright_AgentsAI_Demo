@@ -4,13 +4,19 @@
 // PURPOSE:
 //   This file handles creating and managing a "Test Execution" in XRAY.
 //
+// IMPORTANT — MANUAL vs AUTOMATED BOUNDARY:
+//   This is where the AUTOMATED part begins. Unlike Test Cases and Test Sets
+//   (which QA creates manually in JIRA), Test Executions are created
+//   AUTOMATICALLY by Playwright every time you run `npm test`.
+//   You never need to create a Test Execution by hand in JIRA.
+//
 // WHAT IS A TEST EXECUTION?
 //   A Test Execution is a JIRA ticket created by XRAY to record the results
 //   of running a group of tests at a specific point in time.
 //
 //   Think of it like a REPORT CARD:
-//     - The Test Set is the list of subjects (test cases)
-//     - The Test Execution is the report card for ONE specific exam date
+//     - The Test Set is the list of subjects (test cases) — created MANUALLY
+//     - The Test Execution is the report card for ONE specific exam date — created AUTOMATICALLY
 //     - Each test case in the execution gets a result: PASS, FAIL, or TODO
 //
 //   Example:

@@ -4,6 +4,11 @@
 // PURPOSE:
 //   This file contains functions to fetch test cases from a JIRA XRAY Test Set.
 //
+// IMPORTANT — MANUAL vs AUTOMATED BOUNDARY:
+//   The Test Set (and the Test Cases inside it) are created MANUALLY by QA in
+//   JIRA's web UI. This file reads from them — it does NOT create them.
+//   See CAPABILITIES.md → "JIRA XRAY Integration" for the full setup guide.
+//
 // KEY CONCEPTS FOR BEGINNERS:
 //
 //   What is XRAY?
@@ -14,6 +19,7 @@
 //     A "Test Set" is like a folder/playlist in XRAY. It groups related test cases.
 //     Example: "Login Feature Tests" might be a Test Set with 5 test cases.
 //     Each Test Set has a JIRA ticket ID like "PROJ-456".
+//     QA creates this MANUALLY in JIRA (Issue Type: "Test Set").
 //
 //   What is a Test Case?
 //     A "Test Case" is a single test scenario. It has:
@@ -21,6 +27,7 @@
 //       - A name (e.g., "Verify user can log in with valid credentials")
 //       - Steps  (what to do)
 //       - Expected results (what should happen)
+//     QA creates these MANUALLY in JIRA (Issue Type: "Test").
 //
 //   What is GraphQL?
 //     GraphQL is a special way to ask an API for EXACTLY the data you want.
