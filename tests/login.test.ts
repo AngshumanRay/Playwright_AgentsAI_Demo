@@ -46,8 +46,8 @@ import { test, expect } from './xray-test-fixture';
 // Import the LoginPage object (our POM class for the login page)
 import { LoginPage } from '../pages/LoginPage';
 
-// Import logger for step-by-step logging
-import { logger } from '../utils/helpers/logger';
+// Import enhanced logger — every step logged here appears in the HTML report
+import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 
 // =============================================================================
 // TEST CREDENTIALS
@@ -103,39 +103,25 @@ test.describe('Login Feature Tests', () => {
     async ({ page, xrayTestKey }) => {
 
       // Log which test we're running and its XRAY key
-      logger.section(`▶ Running Test: TC01 | XRAY: ${xrayTestKey}`);
+      enhancedLogger.section(`▶ Running Test: TC01 | XRAY: ${xrayTestKey}`);
 
-      // ------------------------------------------------------------------
-      // ARRANGE: Set up the page object
-      // ------------------------------------------------------------------
-      // Create an instance of LoginPage, passing in the Playwright "page" object.
-      // "page" is the browser tab — Playwright injects it automatically.
       const loginPage = new LoginPage(page);
 
-      // ------------------------------------------------------------------
-      // ACT: Perform the login steps
-      // ------------------------------------------------------------------
       // Step 1: Open the login page
-      logger.step('Step 1: Navigate to the login page');
+      enhancedLogger.step('Step 1: Navigate to the login page', xrayTestKey);
       await loginPage.navigateToLoginPage();
 
       // Step 2: Perform login with valid credentials
-      logger.step('Step 2: Enter valid credentials and submit');
+      enhancedLogger.step('Step 2: Enter valid credentials and submit', xrayTestKey);
       await loginPage.login(TEST_CREDENTIALS.validUsername, TEST_CREDENTIALS.validPassword);
 
-      // ------------------------------------------------------------------
-      // ASSERT: Verify the expected outcome
-      // ------------------------------------------------------------------
       // Step 3: Verify login was successful
-      // After login, the demo site redirects to /secure and shows "Secure Area" heading
-      logger.step('Step 3: Verify user is now on the Secure Area page');
+      enhancedLogger.step('Step 3: Verify user is now on the Secure Area page', xrayTestKey);
       await loginPage.verifySuccessfulLogin();
 
-      // Extra check: URL should now contain "/secure" (not "/login")
       expect(loginPage.getCurrentUrl()).toContain('/secure');
 
-      // Test passed! (XRAY result is automatically saved by the fixture)
-      logger.pass(`TC01 passed — User logged in successfully`);
+      enhancedLogger.pass(`TC01 passed — User logged in successfully`, xrayTestKey);
     }
   );
 
@@ -164,28 +150,23 @@ test.describe('Login Feature Tests', () => {
     },
     async ({ page, xrayTestKey }) => {
 
-      logger.section(`▶ Running Test: TC02 | XRAY: ${xrayTestKey}`);
+      enhancedLogger.section(`▶ Running Test: TC02 | XRAY: ${xrayTestKey}`);
 
       const loginPage = new LoginPage(page);
 
-      // Step 1: Open login page
-      logger.step('Step 1: Navigate to the login page');
+      enhancedLogger.step('Step 1: Navigate to the login page', xrayTestKey);
       await loginPage.navigateToLoginPage();
 
-      // Step 2: Enter correct username but WRONG password
-      logger.step('Step 2: Enter valid username but wrong password');
+      enhancedLogger.step('Step 2: Enter valid username but wrong password', xrayTestKey);
       await loginPage.login(TEST_CREDENTIALS.validUsername, TEST_CREDENTIALS.wrongPassword);
 
-      // Step 3: Verify the error flash message is shown
-      // Demo site error text: "Your password is invalid!"
-      logger.step('Step 3: Verify error message is displayed');
+      enhancedLogger.step('Step 3: Verify error message is displayed', xrayTestKey);
       await loginPage.verifyLoginErrorMessage('Your password is invalid!');
 
-      // Step 4: Verify the URL is still on the login page (user not redirected)
-      logger.step('Step 4: Verify user is still on the login page');
+      enhancedLogger.step('Step 4: Verify user is still on the login page', xrayTestKey);
       expect(loginPage.getCurrentUrl()).toContain('/login');
 
-      logger.pass(`TC02 passed — Error message shown for wrong password`);
+      enhancedLogger.pass(`TC02 passed — Error message shown for wrong password`, xrayTestKey);
     }
   );
 
@@ -212,31 +193,25 @@ test.describe('Login Feature Tests', () => {
     },
     async ({ page, xrayTestKey }) => {
 
-      logger.section(`▶ Running Test: TC03 | XRAY: ${xrayTestKey}`);
+      enhancedLogger.section(`▶ Running Test: TC03 | XRAY: ${xrayTestKey}`);
 
       const loginPage = new LoginPage(page);
 
-      // Step 1: Navigate to login page
-      logger.step('Step 1: Navigate to the login page');
+      enhancedLogger.step('Step 1: Navigate to the login page', xrayTestKey);
       await loginPage.navigateToLoginPage();
 
-      // Step 2: Click login WITHOUT entering ANYTHING
-      // This simulates a user accidentally clicking Login with empty fields.
-      // The demo site will submit and show a flash error: "Your username is invalid!"
-      logger.step('Step 2: Click login button without entering credentials');
+      enhancedLogger.step('Step 2: Click login button without entering credentials', xrayTestKey);
       await loginPage.clickLoginButton();
 
-      // Step 3: Verify the flash message appears (empty username is rejected)
-      logger.step('Step 3: Verify validation flash message is shown');
+      enhancedLogger.step('Step 3: Verify validation flash message is shown', xrayTestKey);
       await loginPage.verifyLoginErrorMessage('Your username is invalid!');
 
-      // Step 4: Confirm we are still on the login page
       const currentUrl = loginPage.getCurrentUrl();
       expect(currentUrl).toContain('/login');
 
-      logger.info(`Validation confirmed: empty credentials rejected, URL is still: ${currentUrl}`);
+      enhancedLogger.info(`Validation confirmed: empty credentials rejected, URL is still: ${currentUrl}`, xrayTestKey);
 
-      logger.pass(`TC03 passed — Empty credentials correctly rejected`);
+      enhancedLogger.pass(`TC03 passed — Empty credentials correctly rejected`, xrayTestKey);
     }
   );
 

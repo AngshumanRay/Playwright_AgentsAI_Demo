@@ -25,6 +25,9 @@
     "test:ci": "CI=true npx playwright test",
     "test:report": "npx playwright show-report",
 
+    "run:headless": "RUN_HEADLESS=true npx playwright test && open reports/$(ls -t reports/ | head -1)",
+    "run:headed": "RUN_HEADLESS=false npx playwright test && open reports/$(ls -t reports/ | head -1)",
+
     "encrypt-password": "npx ts-node utils/security/crypto-helper.ts",
 
     "lint": "npx tsc --noEmit"

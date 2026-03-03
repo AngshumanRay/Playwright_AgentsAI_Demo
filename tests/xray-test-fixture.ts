@@ -42,6 +42,12 @@ import { captureFailureScreenshot } from '../utils/helpers/screenshot';
 // Import the logger
 import { logger } from '../utils/helpers/logger';
 
+// Import enhanced logger — collects structured data for the HTML report
+import { enhancedLogger } from '../utils/helpers/enhanced-logger';
+
+// Import axe-core accessibility scanner
+import AxeBuilder from '@axe-core/playwright';
+
 // =============================================================================
 // TYPE: Define what extra things our custom fixture provides
 // =============================================================================
@@ -82,11 +88,8 @@ export const test = base.extend<XrayFixtures>({
     // -----------------------------------------------------------------------
     // PRE-TEST: Extract the XRAY test key from test annotations or tags
     // -----------------------------------------------------------------------
-    // Playwright TestInfo has an "annotations" array where we look for the XRAY key.
-    // We look for an annotation like: { type: 'xray', description: 'PROJ-101' }
-    let xrayKey = 'UNTRACKED'; // Default: test is not linked to XRAY
+    let xrayKey = 'UNTRACKED';
 
-    // Search through the test's annotations for our XRAY annotation
     const xrayAnnotation = testInfo.annotations.find(
       (annotation) => annotation.type.toLowerCase() === 'xray'
     );
@@ -94,55 +97,111 @@ export const test = base.extend<XrayFixtures>({
     if (xrayAnnotation?.description) {
       xrayKey = xrayAnnotation.description.trim();
       logger.info(`📎 Test linked to XRAY: ${xrayKey}`);
+      enhancedLogger.info(`📎 Test linked to XRAY: ${xrayKey}`, xrayKey);
     } else {
       logger.warn(`Test "${testInfo.title}" has no XRAY annotation — results won't be uploaded.`);
     }
 
-    // Record when this test started
     const startedAt = new Date().toISOString();
+
+    // -----------------------------------------------------------------------
+    // Start performance timer for this test
+    // -----------------------------------------------------------------------
+    enhancedLogger.startTimer(xrayKey);
+
+    // -----------------------------------------------------------------------
+    // Intercept all network requests to count them and measure bytes
+    // -----------------------------------------------------------------------
+    let requestCount = 0;
+    let transferBytes = 0;
+    page.on('requestfinished', async (request) => {
+      requestCount++;
+      try {
+        const response = await request.response();
+        if (response) {
+          const body = await response.body().catch(() => Buffer.alloc(0));
+          transferBytes += body.length;
+        }
+      } catch { /* non-fatal */ }
+    });
 
     // -----------------------------------------------------------------------
     // COOKIE BANNER & POPUP HANDLING
     // -----------------------------------------------------------------------
-    // Many websites show a cookie consent popup when you first visit.
-    // If the popup blocks the page, Playwright cannot click other elements
-    // and the test will fail for the wrong reason.
-    //
-    // We register a DIALOG handler BEFORE the test runs so that:
-    //   - Any browser alert/confirm/prompt dialogs are auto-accepted
-    //   - The test never gets stuck waiting for a human to click "OK"
-    //
-    // "page.on('dialog', ...)" means: "Every time a popup dialog appears,
-    //  run this function automatically."
     page.on('dialog', async (dialog) => {
-      // Log what kind of dialog appeared (alert, confirm, prompt, beforeunload)
       logger.info(`🍪 Auto-accepting dialog: [${dialog.type()}] "${dialog.message()}"`);
-      // "accept()" clicks OK / Yes / Accept on the dialog
       await dialog.accept();
     });
 
     // -----------------------------------------------------------------------
     // RUN THE TEST
     // -----------------------------------------------------------------------
-    // "use(xrayKey)" passes the key into the test function.
-    // All the test's code runs here. After it returns, we're in the "post-test" phase.
     await use(xrayKey);
 
     // -----------------------------------------------------------------------
-    // POST-TEST: Save result to shared state for global teardown to upload
+    // POST-TEST: Collect performance metrics
+    // -----------------------------------------------------------------------
+    const durationMs = testInfo.duration;
+
+    // Collect page timing metrics (navigation performance API)
+    let pageLoadMs: number | undefined;
+    let fcpMs: number | undefined;
+    let lcpMs: number | undefined;
+    try {
+      const perfTiming = await page.evaluate(() => {
+        const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+        const paintEntries = performance.getEntriesByType('paint');
+        const fcp = paintEntries.find(e => e.name === 'first-contentful-paint');
+        const lcp = performance.getEntriesByType('largest-contentful-paint').slice(-1)[0];
+        return {
+          loadEventEnd:  nav?.loadEventEnd  ?? 0,
+          startTime:     nav?.startTime     ?? 0,
+          fcp:           fcp?.startTime     ?? 0,
+          lcp:           (lcp as PerformanceEntry | undefined)?.startTime ?? 0,
+        };
+      });
+      pageLoadMs = perfTiming.loadEventEnd > 0
+        ? Math.round(perfTiming.loadEventEnd - perfTiming.startTime)
+        : undefined;
+      fcpMs = perfTiming.fcp > 0 ? Math.round(perfTiming.fcp) : undefined;
+      lcpMs = perfTiming.lcp > 0 ? Math.round(perfTiming.lcp) : undefined;
+    } catch { /* page may be closed — non-fatal */ }
+
+    // Log collected performance data
+    enhancedLogger.logPerformance(xrayKey, {
+      durationMs,
+      pageLoadMs,
+      fcpMs,
+      lcpMs,
+      requestCount: requestCount > 0 ? requestCount : undefined,
+      transferBytes: transferBytes > 0 ? transferBytes : undefined,
+    });
+
+    // -----------------------------------------------------------------------
+    // POST-TEST: Run accessibility scan (axe-core)
+    // -----------------------------------------------------------------------
+    try {
+      const axeResults = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+      enhancedLogger.logAccessibility(xrayKey,
+        axeResults.violations.map(v => ({
+          id:          v.id,
+          impact:      (v.impact ?? 'minor') as 'minor' | 'moderate' | 'serious' | 'critical',
+          description: v.description,
+          helpUrl:     v.helpUrl,
+          nodes:       v.nodes.length,
+        }))
+      );
+    } catch { /* axe may fail on closed/navigated page — non-fatal */ }
+
+    // -----------------------------------------------------------------------
+    // POST-TEST: Save result to shared XRAY state
     // -----------------------------------------------------------------------
     const finishedAt = new Date().toISOString();
-    const durationMs = testInfo.duration; // Playwright measures this for us
-
-    // "testInfo.status" is set by Playwright:
-    //   'passed'  → test assertions all passed
-    //   'failed'  → a test assertion failed
-    //   'timedOut'→ test took too long
-    //   'skipped' → test was skipped
     const playwrightStatus = testInfo.status;
 
-    // Map Playwright status → XRAY status
-    // XRAY uses "PASS"/"FAIL", Playwright uses "passed"/"failed"
     let xrayStatus: 'PASS' | 'FAIL' | 'ABORTED' = 'PASS';
     if (playwrightStatus === 'failed' || playwrightStatus === 'timedOut') {
       xrayStatus = 'FAIL';
@@ -150,10 +209,7 @@ export const test = base.extend<XrayFixtures>({
       xrayStatus = 'ABORTED';
     }
 
-    // Only save results for tests that are linked to XRAY
     if (xrayKey !== 'UNTRACKED') {
-
-      // If the test failed, capture a screenshot as evidence
       let screenshotPath: string | undefined;
       if (xrayStatus === 'FAIL') {
         logger.step(`Capturing failure screenshot for: ${testInfo.title}`);
@@ -161,17 +217,13 @@ export const test = base.extend<XrayFixtures>({
         if (shot) screenshotPath = shot;
       }
 
-      // Build the error message from Playwright's test error info
       let errorMessage: string | undefined;
       if (testInfo.errors.length > 0) {
-        // Combine all error messages (there could be multiple assertion failures)
         errorMessage = testInfo.errors
           .map((e) => e.message || String(e))
           .join('\n\n');
       }
 
-      // Save the result to the shared state file
-      // Global teardown will read this and upload all results to XRAY at the end
       appendTestResult({
         testCaseKey:  xrayKey,
         status:       xrayStatus,
@@ -182,11 +234,12 @@ export const test = base.extend<XrayFixtures>({
         finishedAt,
       });
 
-      // Log the result
       if (xrayStatus === 'PASS') {
         logger.pass(`[${xrayKey}] ${testInfo.title}`);
+        enhancedLogger.pass(`[${xrayKey}] ${testInfo.title}`, xrayKey);
       } else {
         logger.fail(`[${xrayKey}] ${testInfo.title}`, errorMessage);
+        enhancedLogger.fail(`[${xrayKey}] ${testInfo.title} — ${errorMessage ?? 'unknown error'}`, xrayKey);
       }
     }
   },

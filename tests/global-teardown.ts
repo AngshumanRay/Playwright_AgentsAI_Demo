@@ -142,45 +142,6 @@ export default async function globalTeardown(_config: FullConfig): Promise<void>
   }
 
   // ==========================================================================
-  // STEP 5: Generate Comprehensive HTML Execution Report
-  // ==========================================================================
-  // This creates a self-contained HTML file with charts, performance data,
-  // accessibility results, and step-by-step logs. Share it with your team!
-  // Output: reports/execution-report-YYYY-MM-DD.html
-  // ==========================================================================
-  logger.section('📊 REPORT — Generating HTML Execution Report');
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    const collectedData = enhancedLogger.getCollectedData();
-
-    await generateReport({
-      runDate:      today,
-      environment:  config.app.environment,
-      testResults:  state.results.map(r => ({
-        testCaseKey:  r.testCaseKey,
-        status:       (['PASS','FAIL','ABORTED','EXECUTING'].includes(r.status)
-          ? r.status
-          : 'ABORTED') as 'PASS' | 'FAIL' | 'ABORTED' | 'EXECUTING',
-        testName:     r.testCaseKey,
-        durationMs:   r.durationMs,
-        errorMessage: r.errorMessage,
-      })),
-      xrayLink:     state.executionKey !== 'NOT_CONFIGURED'
-        ? `${process.env['JIRA_BASE_URL'] ?? ''}/browse/${state.executionKey}`
-        : undefined,
-      jiraBaseUrl:  process.env['JIRA_BASE_URL'],
-      logEntries:   collectedData.logs,
-      perfData:     collectedData.performance,
-      a11yData:     collectedData.accessibility,
-    });
-  } catch (err) {
-    logger.warn(`Could not generate HTML report: ${(err as Error).message}`);
-  }
-
-  // ==========================================================================
-  // STEP 6: Clean Up State File
-  // ==========================================================================
-  // ==========================================================================
   // STEP 5: Generate Report + Slack + DB cleanup
   // ==========================================================================
   clearXrayState();
