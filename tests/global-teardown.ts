@@ -82,10 +82,11 @@ export default async function globalTeardown(_config: FullConfig): Promise<void>
   if (state.executionKey === 'NOT_CONFIGURED') {
     logger.warn('XRAY was not configured (execution key is NOT_CONFIGURED).');
     logger.warn('Tests ran, but results were not uploaded to XRAY.');
-    clearXrayState();
 
     // Still generate the HTML report even without XRAY
+    // IMPORTANT: Generate report BEFORE clearing state (report reads perf/a11y data)
     await runPostRunTasks(state, _config);
+    clearXrayState();
     return;
   }
 
@@ -152,8 +153,10 @@ export default async function globalTeardown(_config: FullConfig): Promise<void>
   // ==========================================================================
   // STEP 5: Generate Report + DB cleanup
   // ==========================================================================
-  clearXrayState();
+  // IMPORTANT: Generate report BEFORE clearing state — the report reads
+  // perf/a11y/log data from the shared state file (cross-process data).
   await runPostRunTasks(state, _config);
+  clearXrayState();
 
   logger.section('✅ GLOBAL TEARDOWN COMPLETE — All done!\n   📂 Check reports/ for the HTML execution report.');
 }
@@ -173,6 +176,17 @@ async function runPostRunTasks(state: NonNullable<ReturnType<typeof readXrayStat
   try {
     const today = new Date().toISOString().split('T')[0];
     const collectedData = enhancedLogger.getCollectedData();
+
+    // Read perf/a11y/log data from shared state file (cross-process data from workers)
+    const sharedState = readXrayState();
+    const sharedPerf = sharedState?.perfData ?? [];
+    const sharedA11y = sharedState?.a11yData ?? {};
+    const sharedLogs = sharedState?.logEntries ?? [];
+
+    // Merge: prefer shared (cross-process) data over in-memory (main process only)
+    const mergedPerf = sharedPerf.length > 0 ? sharedPerf : collectedData.performance;
+    const mergedA11y = Object.keys(sharedA11y).length > 0 ? sharedA11y : collectedData.accessibility;
+    const mergedLogs = sharedLogs.length > 0 ? sharedLogs : collectedData.logs;
 
     await generateReport({
       runDate:      today,
@@ -195,9 +209,9 @@ async function runPostRunTasks(state: NonNullable<ReturnType<typeof readXrayStat
       jiraBaseUrl:    process.env['JIRA_BASE_URL'],
       sprintNumber:   state.sprintNumber,
       runStartedAt:   state.runStartedAt,
-      logEntries:   collectedData.logs,
-      perfData:     collectedData.performance,
-      a11yData:     collectedData.accessibility,
+      logEntries:   mergedLogs as any,
+      perfData:     mergedPerf as any,
+      a11yData:     mergedA11y as any,
     });
   } catch (err) {
     logger.warn(`Could not generate HTML report: ${(err as Error).message}`);

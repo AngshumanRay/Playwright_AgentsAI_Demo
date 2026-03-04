@@ -60,6 +60,34 @@ export interface XrayState {
 
   // Timestamp when the test run started
   runStartedAt: string;
+
+  // Performance data per test (collected in worker, read in teardown)
+  perfData: Array<{
+    testName: string;
+    durationMs?: number;
+    pageLoadMs?: number;
+    fcpMs?: number;
+    lcpMs?: number;
+    requestCount?: number;
+    transferBytes?: number;
+  }>;
+
+  // Accessibility violations per test (collected in worker, read in teardown)
+  a11yData: Record<string, Array<{
+    id: string;
+    impact: string;
+    description: string;
+    helpUrl: string;
+    nodes: number;
+  }>>;
+
+  // Structured log entries (collected in worker, read in teardown)
+  logEntries: Array<{
+    timestamp: string;
+    level: string;
+    message: string;
+    testName?: string;
+  }>;
 }
 
 // =============================================================================
@@ -88,6 +116,9 @@ export function initializeXrayState(executionKey: string, sprintNumber: string):
     sprintNumber,
     results: [],
     runStartedAt: new Date().toISOString(),
+    perfData: [],
+    a11yData: {},
+    logEntries: [],
   };
 
   fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(initialState, null, 2), 'utf8');
@@ -156,4 +187,37 @@ export function clearXrayState(): void {
     fs.unlinkSync(STATE_FILE_PATH);
     console.log(`🧹 [XrayState] State file cleared.`);
   }
+}
+
+// =============================================================================
+// FUNCTION: appendPerfData
+// =============================================================================
+export function appendPerfData(entry: XrayState['perfData'][0]): void {
+  const state = readXrayState();
+  if (!state) return;
+  if (!state.perfData) state.perfData = [];
+  state.perfData.push(entry);
+  fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(state, null, 2), 'utf8');
+}
+
+// =============================================================================
+// FUNCTION: appendA11yData
+// =============================================================================
+export function appendA11yData(testKey: string, violations: XrayState['a11yData'][string]): void {
+  const state = readXrayState();
+  if (!state) return;
+  if (!state.a11yData) state.a11yData = {};
+  state.a11yData[testKey] = violations;
+  fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(state, null, 2), 'utf8');
+}
+
+// =============================================================================
+// FUNCTION: appendLogEntries
+// =============================================================================
+export function appendLogEntries(entries: XrayState['logEntries']): void {
+  const state = readXrayState();
+  if (!state) return;
+  if (!state.logEntries) state.logEntries = [];
+  state.logEntries.push(...entries);
+  fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(state, null, 2), 'utf8');
 }

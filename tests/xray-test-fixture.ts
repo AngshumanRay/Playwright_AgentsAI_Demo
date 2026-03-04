@@ -34,7 +34,7 @@
 import { test as base, expect } from '@playwright/test';
 
 // Import XRAY state utility to save results
-import { appendTestResult } from './xray-state-helper';
+import { appendTestResult, appendPerfData, appendA11yData, appendLogEntries } from './xray-state-helper';
 
 // Import screenshot helper
 import { captureFailureScreenshot } from '../utils/helpers/screenshot';
@@ -177,6 +177,17 @@ export const test = base.extend<XrayFixtures>({
       transferBytes: transferBytes > 0 ? transferBytes : undefined,
     });
 
+    // Write perf data to shared state file (cross-process)
+    appendPerfData({
+      testName: xrayKey,
+      durationMs,
+      pageLoadMs,
+      fcpMs,
+      lcpMs,
+      requestCount: requestCount > 0 ? requestCount : undefined,
+      transferBytes: transferBytes > 0 ? transferBytes : undefined,
+    });
+
     // -----------------------------------------------------------------------
     // POST-TEST: Run accessibility scan (axe-core)
     // -----------------------------------------------------------------------
@@ -189,6 +200,17 @@ export const test = base.extend<XrayFixtures>({
         axeResults.violations.map(v => ({
           id:          v.id,
           impact:      (v.impact ?? 'minor') as 'minor' | 'moderate' | 'serious' | 'critical',
+          description: v.description,
+          helpUrl:     v.helpUrl,
+          nodes:       v.nodes.length,
+        }))
+      );
+
+      // Write a11y data to shared state file (cross-process)
+      appendA11yData(xrayKey,
+        axeResults.violations.map(v => ({
+          id:          v.id,
+          impact:      (v.impact ?? 'minor') as string,
           description: v.description,
           helpUrl:     v.helpUrl,
           nodes:       v.nodes.length,
@@ -241,6 +263,14 @@ export const test = base.extend<XrayFixtures>({
       } else {
         logger.fail(`[${xrayKey}] ${testInfo.title}`, errorMessage);
         enhancedLogger.fail(`[${xrayKey}] ${testInfo.title} — ${errorMessage ?? 'unknown error'}`, xrayKey);
+      }
+
+      // Flush this test's log entries to the shared state file (cross-process)
+      const testLogs = enhancedLogger.getLogs()
+        .filter(e => e.testName === xrayKey)
+        .map(e => ({ timestamp: e.timestamp, level: e.level, message: e.message, testName: e.testName }));
+      if (testLogs.length > 0) {
+        appendLogEntries(testLogs);
       }
     }
   },

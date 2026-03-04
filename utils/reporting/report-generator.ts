@@ -164,8 +164,7 @@ function buildHtml(input: ReportInput): string {
     : '—';
 
   // --------------------------------------------------------------------------
-  // Detect test type (UI vs API) — API keys are PROJ-104..106 in our demo
-  // General approach: check if testName starts with "TC0[4-9]" or contains "API"
+  // Detect test type (UI vs API)
   // --------------------------------------------------------------------------
   const getTestType = (r: ReportTestResult): 'UI' | 'API' => {
     const title = (r.testName ?? '').toLowerCase();
@@ -185,11 +184,11 @@ function buildHtml(input: ReportInput): string {
   const testLabels     = results.map(r => r.testCaseKey);
   const durationValues = results.map(r => {
     const perf = perfData.find(p => p.testName?.includes(r.testCaseKey));
-    return perf?.durationMs ? Math.round(perf.durationMs / 1000) : (r.durationMs ? Math.round(r.durationMs / 1000) : 0);
+    return perf?.durationMs ? +(perf.durationMs / 1000).toFixed(2) : (r.durationMs ? +(r.durationMs / 1000).toFixed(2) : 0);
   });
   const loadTimeValues = results.map(r => {
     const perf = perfData.find(p => p.testName?.includes(r.testCaseKey));
-    return perf?.pageLoadMs ? Math.round(perf.pageLoadMs / 1000) : 0;
+    return perf?.pageLoadMs ? +(perf.pageLoadMs / 1000).toFixed(2) : 0;
   });
 
   // --------------------------------------------------------------------------
@@ -201,13 +200,12 @@ function buildHtml(input: ReportInput): string {
     .filter(v => v.impact === 'critical' || v.impact === 'serious').length;
 
   // --------------------------------------------------------------------------
-  // Step logs (grouped by test) — key = testCaseKey, shown with full testName
+  // Step logs (grouped by test)
   // --------------------------------------------------------------------------
   const stepsByTest: Record<string, { title: string; entries: LogEntry[] }> = {};
   for (const entry of logEntries) {
     const key = entry.testName ?? 'Global';
     if (!stepsByTest[key]) {
-      // Find the human-readable title from results
       const matchedResult = results.find(r => r.testCaseKey === key);
       stepsByTest[key] = {
         title: matchedResult?.testName ?? key,
@@ -223,6 +221,70 @@ function buildHtml(input: ReportInput): string {
   const failedWithScreenshots = results.filter(r => r.status === 'FAIL' && r.screenshotPath);
 
   // --------------------------------------------------------------------------
+  // Observability aggregates
+  // --------------------------------------------------------------------------
+  const totalRequests   = perfData.reduce((s, p) => s + (p.requestCount ?? 0), 0);
+  const totalTransferKB = perfData.reduce((s, p) => s + (p.transferBytes ?? 0), 0) / 1024;
+  const avgPageLoad     = perfData.filter(p => p.pageLoadMs).length > 0
+    ? (perfData.reduce((s, p) => s + (p.pageLoadMs ?? 0), 0) / perfData.filter(p => p.pageLoadMs).length)
+    : 0;
+  const avgFcp          = perfData.filter(p => p.fcpMs).length > 0
+    ? (perfData.reduce((s, p) => s + (p.fcpMs ?? 0), 0) / perfData.filter(p => p.fcpMs).length)
+    : 0;
+  const avgLcp          = perfData.filter(p => p.lcpMs).length > 0
+    ? (perfData.reduce((s, p) => s + (p.lcpMs ?? 0), 0) / perfData.filter(p => p.lcpMs).length)
+    : 0;
+  const errorLogCount   = logEntries.filter(e => e.level === 'error' || e.level === 'fail').length;
+  const warnLogCount    = logEntries.filter(e => e.level === 'warn').length;
+
+  // --------------------------------------------------------------------------
+  // 3D Force Graph data — build nodes and links
+  // --------------------------------------------------------------------------
+  const graphNodes: Array<{id: string; group: string; label: string; val: number; color: string}> = [];
+  const graphLinks: Array<{source: string; target: string; color: string}> = [];
+
+  // Central "Test Run" node
+  graphNodes.push({ id: 'RUN', group: 'run', label: `Run ${input.runDate}`, val: 16, color: '#60a5fa' });
+
+  // Module nodes
+  graphNodes.push({ id: 'UI_MODULE', group: 'module', label: 'UI Tests', val: 10, color: '#38bdf8' });
+  graphNodes.push({ id: 'API_MODULE', group: 'module', label: 'API Tests', val: 10, color: '#fb923c' });
+  graphNodes.push({ id: 'A11Y', group: 'quality', label: `A11y (${totalA11yViolations})`, val: 8, color: totalA11yViolations > 0 ? '#f59e0b' : '#22c55e' });
+  graphNodes.push({ id: 'PERF', group: 'quality', label: `Perf (${perfData.length})`, val: 8, color: '#a78bfa' });
+
+  graphLinks.push({ source: 'RUN', target: 'UI_MODULE', color: '#334155' });
+  graphLinks.push({ source: 'RUN', target: 'API_MODULE', color: '#334155' });
+  graphLinks.push({ source: 'RUN', target: 'A11Y', color: '#334155' });
+  graphLinks.push({ source: 'RUN', target: 'PERF', color: '#334155' });
+
+  // Test nodes
+  for (const r of results) {
+    const testType = getTestType(r);
+    const statusColor = r.status === 'PASS' ? '#22c55e' : r.status === 'FAIL' ? '#ef4444' : '#f59e0b';
+    graphNodes.push({
+      id: r.testCaseKey,
+      group: testType.toLowerCase(),
+      label: `${r.testCaseKey}\\n${r.status}`,
+      val: 6,
+      color: statusColor,
+    });
+    graphLinks.push({
+      source: testType === 'UI' ? 'UI_MODULE' : 'API_MODULE',
+      target: r.testCaseKey,
+      color: statusColor + '80',
+    });
+
+    // Link test to A11y if it has violations
+    if ((a11yData[r.testCaseKey] ?? []).length > 0) {
+      graphLinks.push({ source: r.testCaseKey, target: 'A11Y', color: '#f59e0b40' });
+    }
+    // Link test to Perf if we have perf data
+    if (perfData.find(p => p.testName?.includes(r.testCaseKey))) {
+      graphLinks.push({ source: r.testCaseKey, target: 'PERF', color: '#a78bfa40' });
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // BUILD HTML
   // --------------------------------------------------------------------------
   return `<!DOCTYPE html>
@@ -231,144 +293,307 @@ function buildHtml(input: ReportInput): string {
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Execution Report — ${input.runDate}</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+  <script src="https://unpkg.com/3d-force-graph@1.73.3/dist/3d-force-graph.min.js"><\/script>
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"><\/script>
+  <script src="https://unpkg.com/three-spritetext@1.8.2/dist/three-spritetext.min.js"><\/script>
   <style>
+    :root {
+      --bg-primary: #0a0e1a;
+      --bg-secondary: #111827;
+      --bg-card: #1a1f35;
+      --bg-card-hover: #1f2847;
+      --border: #2d3555;
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-blue: #6366f1;
+      --accent-cyan: #22d3ee;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
+      --accent-purple: #a78bfa;
+      --accent-orange: #fb923c;
+      --glass: rgba(26, 31, 53, 0.7);
+      --glass-border: rgba(99, 102, 241, 0.15);
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
-    a { color: #60a5fa; }
-    a:hover { color: #93c5fd; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    a { color: var(--accent-cyan); text-decoration: none; }
+    a:hover { color: #67e8f9; }
+
+    /* ---- ANIMATED BACKGROUND ---- */
+    .bg-mesh {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(34, 211, 238, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
+        var(--bg-primary);
+    }
 
     /* ---- HEADER ---- */
-    .header { background: linear-gradient(135deg, #1e3a5f 0%, #0f2340 100%); padding: 32px 40px; border-bottom: 2px solid #1e40af; }
-    .header h1 { font-size: 28px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; }
-    .header .subtitle { margin-top: 4px; color: #60a5fa; font-size: 14px; font-weight: 500; }
-    .header .meta { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 20px; color: #94a3b8; font-size: 13px; }
+    .header {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(34, 211, 238, 0.08) 50%, rgba(167, 139, 250, 0.1) 100%);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 36px 48px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: conic-gradient(from 0deg, transparent, rgba(99, 102, 241, 0.03), transparent, rgba(34, 211, 238, 0.03), transparent);
+      animation: headerRotate 20s linear infinite;
+    }
+    @keyframes headerRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .header > * { position: relative; z-index: 1; }
+    .header h1 {
+      font-size: 32px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #f1f5f9 0%, #6366f1 50%, #22d3ee 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header .subtitle { margin-top: 6px; color: var(--text-secondary); font-size: 14px; font-weight: 500; }
+    .header .meta { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 20px; color: var(--text-secondary); font-size: 13px; }
     .header .meta-item { display: flex; align-items: center; gap: 6px; }
-    .header .meta-item strong { color: #e2e8f0; }
-    .env-badge { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
-    .env-staging    { background: #1d4ed8; color: #bfdbfe; }
-    .env-production { background: #dc2626; color: #fecaca; }
-    .env-dev        { background: #059669; color: #a7f3d0; }
-    .env-other      { background: #7c3aed; color: #ddd6fe; }
-    .xray-exec-link { display: inline-flex; align-items: center; gap: 6px; background: rgba(96,165,250,0.1); border: 1px solid #3b82f6; border-radius: 6px; padding: 4px 12px; color: #60a5fa; font-size: 12px; text-decoration: none; font-weight: 600; }
-    .xray-exec-link:hover { background: rgba(96,165,250,0.2); color: #93c5fd; }
-    .xray-not-configured { display: inline-flex; align-items: center; gap: 6px; background: rgba(245,158,11,0.1); border: 1px solid #f59e0b; border-radius: 6px; padding: 4px 12px; color: #fde68a; font-size: 12px; font-weight: 500; }
+    .header .meta-item strong { color: var(--text-primary); }
+    .env-badge { display: inline-block; padding: 3px 12px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+    .env-staging    { background: rgba(99,102,241,0.2); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.4); }
+    .env-production { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
+    .env-dev        { background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid rgba(34,197,94,0.4); }
+    .env-other      { background: rgba(167,139,250,0.2); color: #ddd6fe; border: 1px solid rgba(167,139,250,0.4); }
+    .xray-exec-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.3);
+      border-radius: 8px; padding: 5px 14px; color: var(--accent-cyan); font-size: 12px; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .xray-exec-link:hover { background: rgba(34,211,238,0.2); transform: translateY(-1px); }
+    .xray-not-configured {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 8px; padding: 5px 14px; color: #fde68a; font-size: 12px; font-weight: 500;
+    }
 
     /* ---- LAYOUT ---- */
-    .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
-    .section-title { font-size: 18px; font-weight: 700; color: #f1f5f9; margin: 36px 0 16px; padding-bottom: 10px; border-bottom: 2px solid #1e3a5f; display: flex; align-items: center; gap: 8px; }
-    .section-title .count-chip { background: #1e3a5f; color: #93c5fd; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; margin-left: 8px; }
+    .container { max-width: 1440px; margin: 0 auto; padding: 36px 28px; }
+    .section-title {
+      font-size: 20px; font-weight: 700; color: var(--text-primary);
+      margin: 44px 0 18px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-title .count-chip {
+      background: rgba(99,102,241,0.15); color: var(--accent-blue);
+      font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 9999px;
+      border: 1px solid rgba(99,102,241,0.3); margin-left: 8px;
+    }
 
-    /* ---- SUMMARY CARDS ---- */
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 20px; }
-    .card { background: #1e293b; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #334155; transition: transform 0.2s; }
-    .card:hover { transform: translateY(-2px); }
-    .card .value { font-size: 38px; font-weight: 800; line-height: 1; }
-    .card .label { font-size: 11px; color: #64748b; text-transform: uppercase; margin-top: 6px; letter-spacing: 0.8px; }
-    .card.pass  .value { color: #22c55e; }
-    .card.fail  .value { color: #ef4444; }
-    .card.skip  .value { color: #f59e0b; }
-    .card.total .value { color: #60a5fa; }
-    .card.rate  .value { color: ${passRate >= 100 ? '#22c55e' : passRate >= 70 ? '#f59e0b' : '#ef4444'}; }
-    .card.dur   .value { color: #a78bfa; font-size: 28px; }
-    .card.ui    .value { color: #38bdf8; }
-    .card.api   .value { color: #fb923c; }
+    /* ---- GLASSMORPHISM CARDS ---- */
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card {
+      background: var(--glass); backdrop-filter: blur(12px);
+      border-radius: 16px; padding: 22px 16px; text-align: center;
+      border: 1px solid var(--glass-border);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative; overflow: hidden;
+    }
+    .card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .card:hover { transform: translateY(-4px); border-color: var(--border-glow); box-shadow: 0 8px 32px rgba(99, 102, 241, 0.15); }
+    .card:hover::before { opacity: 1; }
+    .card .value { font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+    .card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 8px; letter-spacing: 1px; font-weight: 600; }
+    .card.pass  .value { color: var(--accent-green); }
+    .card.fail  .value { color: var(--accent-red); }
+    .card.skip  .value { color: var(--accent-amber); }
+    .card.total .value { color: var(--accent-blue); }
+    .card.rate  .value { color: ${passRate >= 100 ? 'var(--accent-green)' : passRate >= 70 ? 'var(--accent-amber)' : 'var(--accent-red)'}; }
+    .card.dur   .value { color: var(--accent-purple); font-size: 30px; }
+    .card.ui    .value { color: var(--accent-cyan); }
+    .card.api   .value { color: var(--accent-orange); }
 
     /* ---- PROGRESS BAR ---- */
-    .progress-wrap { margin-bottom: 28px; }
-    .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 6px; }
-    .progress-bar { background: #1e293b; border-radius: 8px; height: 14px; overflow: hidden; display: flex; border: 1px solid #334155; }
-    .progress-pass { background: linear-gradient(90deg,#16a34a,#22c55e); height: 100%; transition: width 1s; }
-    .progress-fail { background: linear-gradient(90deg,#b91c1c,#ef4444); height: 100%; }
-    .progress-skip { background: linear-gradient(90deg,#b45309,#f59e0b); height: 100%; }
+    .progress-wrap { margin-bottom: 32px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+    .progress-bar { background: var(--bg-secondary); border-radius: 10px; height: 16px; overflow: hidden; display: flex; border: 1px solid var(--border); }
+    .progress-pass { background: linear-gradient(90deg, #059669, #22c55e); height: 100%; transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px 0 0 10px; }
+    .progress-fail { background: linear-gradient(90deg, #dc2626, #ef4444); height: 100%; }
+    .progress-skip { background: linear-gradient(90deg, #d97706, #f59e0b); height: 100%; border-radius: 0 10px 10px 0; }
+
+    /* ---- 3D GRAPH ---- */
+    .graph-container {
+      background: var(--glass); backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border); border-radius: 20px;
+      overflow: hidden; margin-bottom: 28px; position: relative;
+    }
+    .graph-container .graph-overlay {
+      position: absolute; top: 16px; left: 20px; z-index: 10;
+      background: rgba(10, 14, 26, 0.8); backdrop-filter: blur(8px);
+      padding: 12px 18px; border-radius: 12px; border: 1px solid var(--border);
+    }
+    .graph-container .graph-overlay h4 { font-size: 13px; color: var(--accent-cyan); font-weight: 700; margin-bottom: 4px; }
+    .graph-container .graph-overlay p { font-size: 11px; color: var(--text-muted); }
+    .graph-legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 20px; background: rgba(10,14,26,0.6); border-top: 1px solid var(--border); }
+    .graph-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+    .graph-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
 
     /* ---- CHARTS ---- */
-    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-    .chart-box { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
-    .chart-box h3 { color: #64748b; font-size: 12px; text-transform: uppercase; margin-bottom: 14px; letter-spacing: 0.8px; font-weight: 600; }
-    .chart-container { position: relative; height: 240px; }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    .chart-box {
+      background: var(--glass); backdrop-filter: blur(12px);
+      border-radius: 16px; padding: 22px; border: 1px solid var(--glass-border);
+      transition: border-color 0.3s;
+    }
+    .chart-box:hover { border-color: var(--border-glow); }
+    .chart-box h3 { color: var(--text-muted); font-size: 12px; text-transform: uppercase; margin-bottom: 14px; letter-spacing: 1px; font-weight: 700; }
+    .chart-container { position: relative; height: 260px; }
     @media(max-width:900px) { .charts-grid { grid-template-columns: 1fr; } }
 
+    /* ---- OBSERVABILITY DASHBOARD ---- */
+    .obs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 28px; }
+    .obs-card {
+      background: var(--glass); backdrop-filter: blur(12px);
+      border-radius: 14px; padding: 20px; border: 1px solid var(--glass-border);
+      position: relative; overflow: hidden;
+      transition: all 0.3s;
+    }
+    .obs-card:hover { border-color: var(--border-glow); transform: translateY(-2px); }
+    .obs-card .obs-icon { font-size: 24px; margin-bottom: 10px; }
+    .obs-card .obs-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+    .obs-card .obs-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; font-weight: 600; }
+    .obs-card .obs-bar {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+    }
+
     /* ---- TABLES ---- */
-    table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; border: 1px solid #334155; margin-bottom: 24px; }
-    th { background: #0f2340; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; padding: 12px 16px; text-align: left; white-space: nowrap; }
-    td { padding: 11px 16px; border-top: 1px solid #1e293b; font-size: 13px; vertical-align: middle; }
-    tr:hover td { background: #263347; }
+    table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 16px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 28px; }
+    th { background: rgba(99,102,241,0.08); color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; padding: 14px 16px; text-align: left; white-space: nowrap; font-weight: 700; }
+    td { padding: 12px 16px; border-top: 1px solid rgba(45,53,85,0.5); font-size: 13px; vertical-align: middle; }
+    tr { transition: background 0.2s; }
+    tr:hover td { background: var(--bg-card-hover); }
 
     /* ---- BADGES ---- */
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
-    .badge-pass  { background: #14532d; color: #86efac; border: 1px solid #166534; }
-    .badge-fail  { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
-    .badge-skip  { background: #451a03; color: #fde68a; border: 1px solid #78350f; }
-    .badge-ui    { background: #0c4a6e; color: #7dd3fc; border: 1px solid #0369a1; font-size: 10px; }
-    .badge-api   { background: #431407; color: #fdba74; border: 1px solid #9a3412; font-size: 10px; }
-    .badge-a11y-critical  { background: #7f1d1d; color: #fca5a5; }
-    .badge-a11y-serious   { background: #7c2d12; color: #fdba74; }
-    .badge-a11y-moderate  { background: #713f12; color: #fef08a; }
-    .badge-a11y-minor     { background: #1e3a5f; color: #93c5fd; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+    .badge-pass  { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+    .badge-fail  { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+    .badge-skip  { background: rgba(245,158,11,0.15); color: #fde68a; border: 1px solid rgba(245,158,11,0.3); }
+    .badge-ui    { background: rgba(34,211,238,0.12); color: #67e8f9; border: 1px solid rgba(34,211,238,0.3); font-size: 10px; }
+    .badge-api   { background: rgba(251,146,60,0.12); color: #fdba74; border: 1px solid rgba(251,146,60,0.3); font-size: 10px; }
+    .badge-a11y-critical  { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+    .badge-a11y-serious   { background: rgba(251,146,60,0.15); color: #fdba74; border: 1px solid rgba(251,146,60,0.3); }
+    .badge-a11y-moderate  { background: rgba(245,158,11,0.15); color: #fef08a; border: 1px solid rgba(245,158,11,0.3); }
+    .badge-a11y-minor     { background: rgba(99,102,241,0.12); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
 
     /* ---- XRAY CHIP ---- */
-    .xray-chip { display: inline-block; background: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; font-weight: 700; text-decoration: none; border: 1px solid #1d4ed8; }
-    .xray-chip:hover { background: #1d4ed8; color: #bfdbfe; }
-    .xray-chip-demo { display: inline-block; background: #1c1917; color: #78716c; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; border: 1px dashed #44403c; cursor: help; }
+    .xray-chip {
+      display: inline-block; background: rgba(99,102,241,0.12); color: #a5b4fc;
+      padding: 3px 10px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', monospace;
+      font-weight: 700; text-decoration: none; border: 1px solid rgba(99,102,241,0.3);
+      transition: all 0.2s;
+    }
+    .xray-chip:hover { background: rgba(99,102,241,0.25); color: #c7d2fe; transform: translateY(-1px); }
+    .xray-chip-demo {
+      display: inline-block; background: rgba(100,116,139,0.1); color: #64748b;
+      padding: 3px 10px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', monospace;
+      border: 1px dashed rgba(100,116,139,0.3); cursor: help;
+    }
 
     /* ---- TIMESTAMPS ---- */
-    .timestamp { color: #475569; font-size: 11px; font-family: monospace; }
-    .test-title { font-weight: 500; color: #e2e8f0; }
-    .test-key   { color: #64748b; font-size: 11px; font-family: monospace; }
+    .timestamp { color: var(--text-muted); font-size: 11px; font-family: 'SF Mono', monospace; }
+    .test-title { font-weight: 500; color: var(--text-primary); }
+    .test-key   { color: var(--text-muted); font-size: 11px; font-family: 'SF Mono', monospace; }
 
     /* ---- ACCORDION ---- */
-    .accordion { background: #1e293b; border: 1px solid #334155; border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
-    .accordion-header { padding: 14px 18px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
-    .accordion-header:hover { background: #263347; }
-    .accordion-header .acc-title { font-size: 14px; font-weight: 600; color: #e2e8f0; display: flex; align-items: center; gap: 10px; }
-    .accordion-body { display: none; padding: 0 16px 16px; }
+    .accordion {
+      background: var(--glass); backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border); border-radius: 14px;
+      margin-bottom: 10px; overflow: hidden; transition: border-color 0.3s;
+    }
+    .accordion:hover { border-color: var(--border-glow); }
+    .accordion-header { padding: 16px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; transition: background 0.2s; }
+    .accordion-header:hover { background: var(--bg-card-hover); }
+    .accordion-header .acc-title { font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+    .accordion-body { display: none; padding: 0 18px 18px; }
     .accordion-body.open { display: block; }
-    .log-line { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03); font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 12px; line-height: 1.5; }
+    .log-line { padding: 4px 0; border-bottom: 1px solid rgba(45,53,85,0.3); font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 12px; line-height: 1.6; }
     .log-pass  { color: #86efac; }
     .log-fail  { color: #fca5a5; }
     .log-warn  { color: #fde68a; }
     .log-error { color: #fca5a5; }
-    .log-step  { color: #93c5fd; }
-    .log-info  { color: #94a3b8; }
+    .log-step  { color: #a5b4fc; }
+    .log-info  { color: var(--text-secondary); }
 
-    /* ---- SECURITY CARDS ---- */
-    .security-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 18px 20px; margin-bottom: 10px; }
-    .security-card h4 { color: #f1f5f9; margin-bottom: 8px; font-size: 14px; }
-    .security-card p  { color: #94a3b8; font-size: 13px; line-height: 1.6; }
-    .security-card code { background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; color: #a5b4fc; }
-    .security-ok   { border-left: 4px solid #22c55e; }
-    .security-warn { border-left: 4px solid #f59e0b; }
-    .security-info { border-left: 4px solid #60a5fa; }
+    /* ---- STATUS CARDS ---- */
+    .status-card {
+      background: var(--glass); backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border); border-radius: 16px;
+      padding: 20px 24px; margin-bottom: 12px; transition: all 0.3s;
+    }
+    .status-card:hover { border-color: var(--border-glow); }
+    .status-card h4 { color: var(--text-primary); margin-bottom: 8px; font-size: 14px; font-weight: 600; }
+    .status-card p  { color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
+    .status-card code { background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-family: 'SF Mono', monospace; font-size: 11px; color: #a5b4fc; }
+    .status-ok   { border-left: 4px solid var(--accent-green); }
+    .status-warn { border-left: 4px solid var(--accent-amber); }
+    .status-info { border-left: 4px solid var(--accent-blue); }
 
     /* ---- SCREENSHOT ---- */
-    .screenshot-thumb { max-width: 200px; max-height: 120px; border-radius: 6px; border: 1px solid #334155; cursor: zoom-in; transition: transform 0.2s; object-fit: cover; }
-    .screenshot-thumb:hover { transform: scale(1.05); }
-    .screenshot-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; }
+    .screenshot-thumb { max-width: 200px; max-height: 120px; border-radius: 8px; border: 1px solid var(--border); cursor: zoom-in; transition: all 0.3s; object-fit: cover; }
+    .screenshot-thumb:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    .screenshot-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
     .screenshot-modal.open { display: flex; }
-    .screenshot-modal img { max-width: 90vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 0 60px rgba(0,0,0,0.8); }
+    .screenshot-modal img { max-width: 90vw; max-height: 90vh; border-radius: 12px; box-shadow: 0 0 80px rgba(99,102,241,0.2); }
 
-    /* ---- INFO NOTE ---- */
-    .info-note { background: #1e293b; border: 1px solid #334155; border-left: 4px solid #3b82f6; border-radius: 8px; padding: 14px 18px; color: #94a3b8; font-size: 13px; margin-bottom: 16px; }
-    .info-note strong { color: #93c5fd; }
+    /* ---- TAB NAVIGATION ---- */
+    .nav-tabs {
+      display: flex; gap: 4px; margin-bottom: 24px; padding: 4px;
+      background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .nav-tab {
+      padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      font-weight: 600; color: var(--text-muted); transition: all 0.2s;
+      white-space: nowrap; border: none; background: none;
+    }
+    .nav-tab:hover { color: var(--text-primary); background: rgba(99,102,241,0.08); }
+    .nav-tab.active { background: var(--accent-blue); color: white; box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* ---- A11Y ---- */
-    .a11y-row { font-size: 12px; }
-    .a11y-none { color: #22c55e; padding: 16px; text-align: center; font-size: 13px; }
+    /* ---- FOOTER ---- */
+    .footer {
+      text-align: center; padding: 32px 20px; color: var(--text-muted); font-size: 12px;
+      border-top: 1px solid var(--border); margin-top: 48px;
+    }
+    .footer a { color: var(--accent-blue); }
   </style>
 </head>
 <body>
+<div class="bg-mesh"></div>
 
 <!-- =========================================================== -->
 <!-- HEADER                                                        -->
 <!-- =========================================================== -->
 <div class="header">
-  <h1>📊 Playwright Test Execution Report</h1>
-  <div class="subtitle">Automated UI + API Test Results — Framework: Playwright + TypeScript + XRAY</div>
+  <h1>⚡ Playwright Execution Report</h1>
+  <div class="subtitle">Automated UI + API Test Results — Playwright + TypeScript + JIRA XRAY Integration</div>
   <div class="meta">
-    <div class="meta-item">📅 <span><strong>${input.runDate}</strong></span></div>
+    <div class="meta-item">📅 <strong>${input.runDate}</strong></div>
     <div class="meta-item">🚀 Started: <strong>${runStartDisplay}</strong></div>
-    <div class="meta-item">🌍 Environment:
+    <div class="meta-item">🌍
       <span class="env-badge ${
         input.environment === 'staging' ? 'env-staging'
         : input.environment === 'production' ? 'env-production'
@@ -377,11 +602,11 @@ function buildHtml(input: ReportInput): string {
       }">${input.environment}</span>
     </div>
     <div class="meta-item">🔖 Sprint: <strong>${sprintDisplay}</strong></div>
-    <div class="meta-item">⏱️ Total Duration: <strong>${totalDurationSec}s</strong></div>
+    <div class="meta-item">⏱️ Duration: <strong>${totalDurationSec}s</strong></div>
     <div class="meta-item">
       ${input.xrayLink
-        ? `<a class="xray-exec-link" href="${input.xrayLink}" target="_blank">🔗 XRAY Test Execution ↗</a>`
-        : `<span class="xray-not-configured" title="Set JIRA_BASE_URL in .env to enable XRAY integration">⚠️ XRAY: Not Configured — Configure .env to enable</span>`
+        ? `<a class="xray-exec-link" href="${input.xrayLink}" target="_blank">🔗 XRAY Execution ↗</a>`
+        : `<span class="xray-not-configured" title="Set JIRA_BASE_URL in .env to enable XRAY">⚠️ XRAY: Not Configured</span>`
       }
     </div>
     <div class="meta-item">⏰ Generated: <strong>${new Date().toLocaleString()}</strong></div>
@@ -396,15 +621,15 @@ function buildHtml(input: ReportInput): string {
 <div class="section-title">🏆 Execution Summary</div>
 <div class="cards">
   <div class="card total"><div class="value">${total}</div><div class="label">Total Tests</div></div>
-  <div class="card pass"> <div class="value">${passed}</div><div class="label">Passed ✅</div></div>
-  <div class="card fail"> <div class="value">${failed}</div><div class="label">Failed ❌</div></div>
-  <div class="card skip"> <div class="value">${aborted}</div><div class="label">Aborted ⚠️</div></div>
-  <div class="card rate"> <div class="value">${passRate}%</div><div class="label">Pass Rate</div></div>
-  <div class="card dur">  <div class="value">${totalDurationSec}s</div><div class="label">Total Duration</div></div>
-  <div class="card ui">   <div class="value">${uiCount}</div><div class="label">UI Tests 🖥️</div></div>
-  <div class="card api">  <div class="value">${apiCount}</div><div class="label">API Tests 🔌</div></div>
-  <div class="card" style="border-color:${totalA11yViolations>0?'#ef4444':'#22c55e'}">
-    <div class="value" style="color:${totalA11yViolations>0?'#ef4444':'#22c55e'}">${totalA11yViolations}</div>
+  <div class="card pass"><div class="value">${passed}</div><div class="label">Passed ✅</div></div>
+  <div class="card fail"><div class="value">${failed}</div><div class="label">Failed ❌</div></div>
+  <div class="card skip"><div class="value">${aborted}</div><div class="label">Aborted ⚠️</div></div>
+  <div class="card rate"><div class="value">${passRate}%</div><div class="label">Pass Rate</div></div>
+  <div class="card dur"><div class="value">${totalDurationSec}s</div><div class="label">Duration</div></div>
+  <div class="card ui"><div class="value">${uiCount}</div><div class="label">UI Tests 🖥️</div></div>
+  <div class="card api"><div class="value">${apiCount}</div><div class="label">API Tests 🔌</div></div>
+  <div class="card" style="border-color:${totalA11yViolations>0?'rgba(239,68,68,0.4)':'rgba(34,197,94,0.4)'}">
+    <div class="value" style="color:${totalA11yViolations>0?'var(--accent-red)':'var(--accent-green)'}">${totalA11yViolations}</div>
     <div class="label">A11y Issues</div>
   </div>
 </div>
@@ -423,73 +648,171 @@ function buildHtml(input: ReportInput): string {
 </div>
 
 <!-- =========================================================== -->
-<!-- CHARTS                                                        -->
+<!-- TAB NAVIGATION                                                -->
 <!-- =========================================================== -->
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="switchTab('tab-3d')">🌐 3D Graph</button>
+  <button class="nav-tab" onclick="switchTab('tab-observability')">📡 Observability</button>
+  <button class="nav-tab" onclick="switchTab('tab-charts')">📈 Charts</button>
+  <button class="nav-tab" onclick="switchTab('tab-results')">📋 Results</button>
+  <button class="nav-tab" onclick="switchTab('tab-perf')">⚡ Performance</button>
+  <button class="nav-tab" onclick="switchTab('tab-a11y')">♿ Accessibility</button>
+  <button class="nav-tab" onclick="switchTab('tab-logs')">📝 Logs</button>
+  <button class="nav-tab" onclick="switchTab('tab-security')">🔐 Security</button>
+</div>
+
+<!-- =========================================================== -->
+<!-- TAB: 3D FORCE GRAPH (Neo4j-style)                             -->
+<!-- =========================================================== -->
+<div class="tab-content active" id="tab-3d">
+<div class="section-title">🌐 3D Test Execution Graph <span class="count-chip">Interactive</span></div>
+<div class="graph-container">
+  <div class="graph-overlay">
+    <h4>🔮 Neo4j-Style Force Graph</h4>
+    <p>Drag to rotate • Scroll to zoom • Click nodes for details</p>
+  </div>
+  <div id="3d-graph" style="height:520px;width:100%;"></div>
+  <div class="graph-legend">
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#6366f1"></div> Test Run</div>
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#22d3ee"></div> UI Module</div>
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#fb923c"></div> API Module</div>
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#22c55e"></div> Passed</div>
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#ef4444"></div> Failed</div>
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#a78bfa"></div> Performance</div>
+    <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#f59e0b"></div> Accessibility</div>
+  </div>
+</div>
+</div>
+
+<!-- =========================================================== -->
+<!-- TAB: OBSERVABILITY DASHBOARD                                  -->
+<!-- =========================================================== -->
+<div class="tab-content" id="tab-observability">
+<div class="section-title">📡 Observability Dashboard <span class="count-chip">Real-time Metrics</span></div>
+<div class="obs-grid">
+  <div class="obs-card">
+    <div class="obs-icon">🌐</div>
+    <div class="obs-value" style="color:var(--accent-cyan)">${totalRequests}</div>
+    <div class="obs-label">Total HTTP Requests</div>
+    <div class="obs-bar"></div>
+  </div>
+  <div class="obs-card">
+    <div class="obs-icon">📦</div>
+    <div class="obs-value" style="color:var(--accent-purple)">${totalTransferKB.toFixed(1)} KB</div>
+    <div class="obs-label">Data Transferred</div>
+    <div class="obs-bar" style="background:linear-gradient(90deg,var(--accent-purple),#c084fc)"></div>
+  </div>
+  <div class="obs-card">
+    <div class="obs-icon">⚡</div>
+    <div class="obs-value" style="color:var(--accent-green)">${avgPageLoad > 0 ? (avgPageLoad/1000).toFixed(2) + 's' : '—'}</div>
+    <div class="obs-label">Avg Page Load</div>
+    <div class="obs-bar" style="background:linear-gradient(90deg,var(--accent-green),#4ade80)"></div>
+  </div>
+  <div class="obs-card">
+    <div class="obs-icon">🎨</div>
+    <div class="obs-value" style="color:#22d3ee">${avgFcp > 0 ? (avgFcp/1000).toFixed(2) + 's' : '—'}</div>
+    <div class="obs-label">Avg FCP</div>
+    <div class="obs-bar" style="background:linear-gradient(90deg,#06b6d4,#22d3ee)"></div>
+  </div>
+  <div class="obs-card">
+    <div class="obs-icon">📐</div>
+    <div class="obs-value" style="color:#f472b6">${avgLcp > 0 ? (avgLcp/1000).toFixed(2) + 's' : '—'}</div>
+    <div class="obs-label">Avg LCP</div>
+    <div class="obs-bar" style="background:linear-gradient(90deg,#ec4899,#f472b6)"></div>
+  </div>
+  <div class="obs-card">
+    <div class="obs-icon">❌</div>
+    <div class="obs-value" style="color:var(--accent-red)">${errorLogCount}</div>
+    <div class="obs-label">Error Logs</div>
+    <div class="obs-bar" style="background:linear-gradient(90deg,var(--accent-red),#f87171)"></div>
+  </div>
+  <div class="obs-card">
+    <div class="obs-icon">⚠️</div>
+    <div class="obs-value" style="color:var(--accent-amber)">${warnLogCount}</div>
+    <div class="obs-label">Warning Logs</div>
+    <div class="obs-bar" style="background:linear-gradient(90deg,var(--accent-amber),#fbbf24)"></div>
+  </div>
+  <div class="obs-card">
+    <div class="obs-icon">♿</div>
+    <div class="obs-value" style="color:${totalA11yViolations > 0 ? 'var(--accent-amber)' : 'var(--accent-green)'}">${totalA11yViolations}</div>
+    <div class="obs-label">A11y Violations</div>
+    <div class="obs-bar" style="background:linear-gradient(90deg,${totalA11yViolations > 0 ? 'var(--accent-amber),#fbbf24' : 'var(--accent-green),#4ade80'})"></div>
+  </div>
+</div>
+
+<!-- Per-test Observability Table -->
+${perfData.length > 0 ? `
+<h3 style="color:var(--text-muted);font-size:13px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;font-weight:700">Per-Test Metrics Breakdown</h3>
+<table>
+  <thead><tr><th>Test</th><th>Type</th><th>Duration</th><th>Page Load</th><th>FCP</th><th>LCP</th><th>Requests</th><th>Transfer</th></tr></thead>
+  <tbody>
+    ${perfData.map(p => {
+      const matchedResult = results.find(r => p.testName?.includes(r.testCaseKey));
+      const testType = matchedResult ? getTestType(matchedResult) : 'UI';
+      const displayName = matchedResult?.testName ?? p.testName ?? '—';
+      return `
+    <tr>
+      <td style="font-size:12px">${escapeHtml(displayName)}</td>
+      <td><span class="badge badge-${testType.toLowerCase()}" style="font-size:10px">${testType}</span></td>
+      <td>${p.durationMs ? (p.durationMs/1000).toFixed(2) + 's' : '—'}</td>
+      <td>${p.pageLoadMs ? (p.pageLoadMs/1000).toFixed(2) + 's' : '—'}</td>
+      <td>${p.fcpMs ? (p.fcpMs/1000).toFixed(2) + 's' : '—'}</td>
+      <td>${p.lcpMs ? (p.lcpMs/1000).toFixed(2) + 's' : '—'}</td>
+      <td>${p.requestCount ?? '—'}</td>
+      <td>${p.transferBytes ? (p.transferBytes/1024).toFixed(1) + ' KB' : '—'}</td>
+    </tr>`;
+    }).join('')}
+  </tbody>
+</table>` : `<div class="status-card status-info"><h4>ℹ️ No observability data collected</h4><p>Performance metrics are collected automatically during test execution. Run tests to populate this dashboard.</p></div>`}
+</div>
+
+<!-- =========================================================== -->
+<!-- TAB: CHARTS                                                   -->
+<!-- =========================================================== -->
+<div class="tab-content" id="tab-charts">
 <div class="section-title">📈 Charts & Graphs</div>
 <div class="charts-grid">
-
   <div class="chart-box">
     <h3>Pass / Fail Distribution</h3>
     <div class="chart-container"><canvas id="pieChart"></canvas></div>
   </div>
-
   <div class="chart-box">
     <h3>Test Duration (seconds)</h3>
     <div class="chart-container"><canvas id="durationChart"></canvas></div>
   </div>
-
   <div class="chart-box">
     <h3>Page Load Time (seconds)</h3>
     <div class="chart-container"><canvas id="loadChart"></canvas></div>
   </div>
-
   <div class="chart-box">
     <h3>Result per Test</h3>
     <div class="chart-container"><canvas id="histChart"></canvas></div>
   </div>
-
+</div>
 </div>
 
 <!-- =========================================================== -->
-<!-- JIRA XRAY INTEGRATION STATUS                                  -->
+<!-- TAB: TEST RESULTS                                             -->
 <!-- =========================================================== -->
-<div class="section-title">🔗 JIRA XRAY Integration</div>
+<div class="tab-content" id="tab-results">
+<div class="section-title">📋 Test Case Results <span class="count-chip">${total} tests</span></div>
+
+<!-- JIRA XRAY STATUS -->
 ${isJiraConfigured
-  ? `<div class="security-card security-ok">
+  ? `<div class="status-card status-ok" style="margin-bottom:20px">
   <h4>✅ XRAY Integration Active — <a href="${jiraBase}" target="_blank">${jiraBase}</a></h4>
-  <p>Test results are automatically uploaded to XRAY after each run. Click any test case key in the table below to open the XRAY test case in JIRA.</p>
+  <p>Test results automatically uploaded to XRAY. Click test case keys to open in JIRA.</p>
   ${input.xrayLink ? `<p style="margin-top:8px">📌 <strong>This execution:</strong> <a href="${input.xrayLink}" target="_blank">${input.xrayLink}</a></p>` : ''}
 </div>`
-  : `<div class="security-card security-warn">
-  <h4>⚠️ XRAY Not Configured — Running in Demo Mode</h4>
-  <p>To enable live XRAY integration, update your <code>.env</code> file with real credentials:</p>
-  <ul style="margin-top:10px;margin-left:20px;color:#94a3b8;font-size:13px;line-height:2">
-    <li><code>JIRA_BASE_URL</code> — e.g. <code>https://yourcompany.atlassian.net</code></li>
-    <li><code>JIRA_USERNAME</code> — your Atlassian account email</li>
-    <li><code>JIRA_API_TOKEN</code> — generate at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank">Atlassian API Tokens ↗</a></li>
-  </ul>
-  <p style="margin-top:10px">Once configured, every test run will automatically create a JIRA Test Execution and upload PASS/FAIL results — including screenshots for failed tests.</p>
-  <p style="margin-top:8px;color:#fde68a;font-size:12px">💡 The test case keys (PROJ-101, PROJ-104, etc.) shown below are the XRAY test case IDs to link in your JIRA project.</p>
+  : `<div class="status-card status-warn" style="margin-bottom:20px">
+  <h4>⚠️ XRAY Not Configured — Demo Mode</h4>
+  <p>To enable: set <code>JIRA_BASE_URL</code>, <code>JIRA_USERNAME</code>, <code>JIRA_API_TOKEN</code> in <code>.env</code></p>
 </div>`
 }
 
-<!-- =========================================================== -->
-<!-- TEST RESULTS TABLE                                            -->
-<!-- =========================================================== -->
-<div class="section-title">📋 Test Case Results <span class="count-chip">${total} tests</span></div>
 <table>
   <thead>
-    <tr>
-      <th>Type</th>
-      <th>XRAY Key</th>
-      <th>Test Name</th>
-      <th>Status</th>
-      <th>Duration</th>
-      <th>Page Load</th>
-      <th>A11y Issues</th>
-      <th>Started</th>
-      <th>Error</th>
-    </tr>
+    <tr><th>Type</th><th>XRAY Key</th><th>Test Name</th><th>Status</th><th>Duration</th><th>Page Load</th><th>A11y</th><th>Started</th><th>Error</th></tr>
   </thead>
   <tbody>
     ${results.map(r => {
@@ -497,19 +820,16 @@ ${isJiraConfigured
       const a11yEntry  = a11yData[r.testCaseKey] ?? [];
       const critA11y   = a11yEntry.filter(v => v.impact === 'critical' || v.impact === 'serious').length;
       const durSec     = r.durationMs
-        ? `${(r.durationMs/1000).toFixed(1)}s`
-        : (perfEntry?.durationMs ? `${(perfEntry.durationMs/1000).toFixed(1)}s` : '—');
-      const loadSec    = perfEntry?.pageLoadMs ? `${(perfEntry.pageLoadMs/1000).toFixed(1)}s` : '—';
+        ? (r.durationMs/1000).toFixed(1) + 's'
+        : (perfEntry?.durationMs ? (perfEntry.durationMs/1000).toFixed(1) + 's' : '—');
+      const loadSec    = perfEntry?.pageLoadMs ? (perfEntry.pageLoadMs/1000).toFixed(1) + 's' : '—';
       const badgeClass = r.status === 'PASS' ? 'badge-pass' : r.status === 'FAIL' ? 'badge-fail' : 'badge-skip';
       const testType   = getTestType(r);
       const startTime  = r.startedAt ? new Date(r.startedAt).toLocaleTimeString() : '—';
-
-      // Build XRAY chip — clickable only if JIRA is configured
-      const xrayHref = r.xrayLink ?? (isJiraConfigured && jiraBase && r.testCaseKey ? `${jiraBase}/browse/${r.testCaseKey}` : '');
+      const xrayHref = r.xrayLink ?? (isJiraConfigured && jiraBase && r.testCaseKey ? jiraBase + '/browse/' + r.testCaseKey : '');
       const xrayChip = xrayHref
         ? `<a href="${xrayHref}" target="_blank" class="xray-chip" title="Open in JIRA XRAY">${r.testCaseKey}</a>`
-        : `<span class="xray-chip-demo" title="Configure JIRA_BASE_URL in .env to enable links">${r.testCaseKey}</span>`;
-
+        : `<span class="xray-chip-demo" title="Configure JIRA_BASE_URL in .env">${r.testCaseKey}</span>`;
       return `
     <tr>
       <td><span class="badge badge-${testType.toLowerCase()}">${testType === 'UI' ? '🖥️ UI' : '🔌 API'}</span></td>
@@ -522,7 +842,7 @@ ${isJiraConfigured
       <td>${durSec}</td>
       <td>${loadSec}</td>
       <td>${a11yEntry.length === 0
-        ? '<span style="color:#22c55e;font-size:12px">✅ None</span>'
+        ? '<span style="color:var(--accent-green);font-size:12px">✅ None</span>'
         : `<span class="badge badge-a11y-${critA11y > 0 ? 'critical' : 'moderate'}">${a11yEntry.length} (${critA11y} crit)</span>`
       }</td>
       <td class="timestamp">${startTime}</td>
@@ -532,61 +852,29 @@ ${isJiraConfigured
   </tbody>
 </table>
 
-<!-- =========================================================== -->
-<!-- FAILURE SCREENSHOTS                                           -->
-<!-- =========================================================== -->
+<!-- Failure Screenshots -->
 ${failedWithScreenshots.length > 0 ? `
 <div class="section-title">📸 Failure Screenshots <span class="count-chip">${failedWithScreenshots.length}</span></div>
 <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px">
   ${failedWithScreenshots.map(r => `
-  <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px;max-width:280px">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px;max-width:280px">
     <div style="font-size:12px;color:#fca5a5;font-weight:600;margin-bottom:8px">❌ ${escapeHtml(r.testName ?? r.testCaseKey)}</div>
     <img class="screenshot-thumb" src="${r.screenshotPath}" alt="Failure screenshot for ${escapeHtml(r.testCaseKey)}" onclick="openScreenshot('${r.screenshotPath}')"/>
-    <div style="font-size:11px;color:#64748b;margin-top:6px;font-family:monospace">${r.testCaseKey}</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-family:monospace">${r.testCaseKey}</div>
   </div>`).join('')}
 </div>
-
-<!-- Screenshot Modal -->
 <div class="screenshot-modal" id="screenshotModal" onclick="closeScreenshot()">
   <img id="screenshotModalImg" src="" alt="Screenshot"/>
 </div>` : ''}
+</div>
 
 <!-- =========================================================== -->
-<!-- ACCESSIBILITY REPORT                                          -->
+<!-- TAB: PERFORMANCE                                              -->
 <!-- =========================================================== -->
-<div class="section-title">♿ Accessibility Report <span class="count-chip">${totalA11yViolations} violations</span></div>
-${Object.keys(a11yData).length === 0
-  ? `<div class="security-card security-info"><h4>ℹ️ No accessibility data collected</h4><p>Axe-core scans run automatically on all UI tests via the XRAY fixture. API tests are excluded (no rendered page). Rerun UI tests to collect data.</p></div>`
-  : criticalA11y > 0
-    ? `<div class="security-card security-warn" style="margin-bottom:16px"><h4>⚠️ ${criticalA11y} Critical/Serious Accessibility Violations Found</h4><p>These must be fixed before production release. See WCAG 2.1 AA guidelines for remediation guidance.</p></div>`
-    : `<div class="security-card security-ok" style="margin-bottom:16px"><h4>✅ No Critical Accessibility Violations</h4><p>${totalA11yViolations > 0 ? `${totalA11yViolations} minor/moderate issue(s) found — review and address as capacity allows.` : 'All pages passed WCAG 2.1 AA accessibility scans.'}</p></div>`
-}
-${Object.keys(a11yData).length > 0 ? `<table>
-  <thead><tr><th>Test</th><th>Violation ID</th><th>Impact</th><th>Description</th><th>Nodes</th><th>Docs</th></tr></thead>
-  <tbody>
-    ${Object.entries(a11yData).flatMap(([testKey, violations]) => {
-      const testTitle = results.find(r => r.testCaseKey === testKey)?.testName ?? testKey;
-      return violations.length === 0
-        ? [`<tr><td colspan="6" class="a11y-none">✅ ${escapeHtml(testTitle)} — No violations</td></tr>`]
-        : violations.map(v => `
-    <tr class="a11y-row">
-      <td style="font-size:12px">${escapeHtml(testTitle)}</td>
-      <td style="font-family:monospace;font-size:11px;color:#a5b4fc">${v.id}</td>
-      <td><span class="badge badge-a11y-${v.impact}">${v.impact}</span></td>
-      <td style="font-size:12px;max-width:300px">${escapeHtml(v.description)}</td>
-      <td style="text-align:center">${v.nodes}</td>
-      <td><a href="${v.helpUrl}" target="_blank" style="font-size:12px;color:#60a5fa">Docs ↗</a></td>
-    </tr>`);
-    }).join('')}
-  </tbody>
-</table>` : ''}
-
-<!-- =========================================================== -->
-<!-- PERFORMANCE DATA                                              -->
-<!-- =========================================================== -->
+<div class="tab-content" id="tab-perf">
 <div class="section-title">⚡ Performance Data <span class="count-chip">${perfData.length} entries</span></div>
 ${perfData.length === 0
-  ? `<div class="security-card security-info"><h4>ℹ️ No performance data collected</h4><p>Performance metrics (page load, FCP, LCP) are collected automatically for UI tests. API tests only record duration.</p></div>`
+  ? `<div class="status-card status-info"><h4>ℹ️ No performance data collected</h4><p>Performance metrics (page load, FCP, LCP, network requests) are collected automatically for all tests. API tests record duration and request count.</p></div>`
   : `<table>
   <thead><tr><th>Test</th><th>Type</th><th>Duration</th><th>Page Load</th><th>FCP</th><th>LCP</th><th>Requests</th><th>Data Transfer</th></tr></thead>
   <tbody>
@@ -598,54 +886,57 @@ ${perfData.length === 0
     <tr>
       <td style="font-size:12px">${escapeHtml(displayName)}</td>
       <td><span class="badge badge-${testType.toLowerCase()}" style="font-size:10px">${testType}</span></td>
-      <td>${p.durationMs ? `${(p.durationMs/1000).toFixed(2)}s` : '—'}</td>
-      <td>${p.pageLoadMs ? `${(p.pageLoadMs/1000).toFixed(2)}s` : '—'}</td>
-      <td>${p.fcpMs ? `${(p.fcpMs/1000).toFixed(2)}s` : '—'}</td>
-      <td>${p.lcpMs ? `${(p.lcpMs/1000).toFixed(2)}s` : '—'}</td>
+      <td>${p.durationMs ? (p.durationMs/1000).toFixed(2) + 's' : '—'}</td>
+      <td>${p.pageLoadMs ? (p.pageLoadMs/1000).toFixed(2) + 's' : '—'}</td>
+      <td>${p.fcpMs ? (p.fcpMs/1000).toFixed(2) + 's' : '—'}</td>
+      <td>${p.lcpMs ? (p.lcpMs/1000).toFixed(2) + 's' : '—'}</td>
       <td>${p.requestCount ?? '—'}</td>
-      <td>${p.transferBytes ? `${(p.transferBytes/1024).toFixed(1)} KB` : '—'}</td>
+      <td>${p.transferBytes ? (p.transferBytes/1024).toFixed(1) + ' KB' : '—'}</td>
     </tr>`;
     }).join('')}
   </tbody>
 </table>`}
-
-<!-- =========================================================== -->
-<!-- SECURITY NOTES                                                -->
-<!-- =========================================================== -->
-<div class="section-title">🔐 Security & Vulnerability Notes</div>
-<div class="security-card security-ok">
-  <h4>✅ Credential Management — AES-256 Encryption</h4>
-  <p>All passwords are stored as encrypted values (AES-256-CBC) in <code>.env</code>. Plain text passwords are never committed to source control. The <code>ENCRYPTION_KEY</code> is stored separately from the encrypted values.</p>
-</div>
-<div class="security-card security-ok">
-  <h4>✅ SQL Injection Prevention — Parameterised Queries</h4>
-  <p>All database queries use parameterised queries (<code>$1, $2</code> placeholders) — never string concatenation with user input. This prevents SQL injection attacks per OWASP A03:2021.</p>
-</div>
-<div class="security-card security-ok">
-  <h4>✅ Secure Database Connections — SSL/TLS</h4>
-  <p>Database connections support SSL/TLS encryption (<code>DB_SSL=true</code>). Production databases always have SSL enabled to prevent data interception in transit.</p>
-</div>
-<div class="security-card security-ok">
-  <h4>✅ XRAY / JIRA API Authentication — Token-Based</h4>
-  <p>JIRA API access uses Atlassian API tokens (not passwords) stored in environment variables. Tokens can be revoked independently without changing your password. Never log API tokens.</p>
-</div>
-<div class="security-card security-info">
-  <h4>ℹ️ Dependency Audit — Action Required Periodically</h4>
-  <p>Run <code>npm audit</code> regularly to check for known CVEs in installed packages. Run <code>npm audit fix</code> to auto-fix safe updates. Review breaking changes before applying major version fixes.</p>
-</div>
-<div class="security-card ${failed > 0 ? 'security-warn' : 'security-ok'}">
-  <h4>${failed > 0 ? '⚠️' : '✅'} Test Failure Analysis</h4>
-  <p>${failed > 0
-    ? `${failed} test(s) failed this run. Review failure screenshots and error messages in the Test Case Results table above. Ensure error messages do not expose security-sensitive data (e.g., stack traces, DB connection strings) in production logs.`
-    : 'All tests passed. No security-related failures detected in this run. Failure screenshots would appear above if any tests failed.'}</p>
 </div>
 
 <!-- =========================================================== -->
-<!-- STEP-BY-STEP LOG (Allure-like accordion)                     -->
+<!-- TAB: ACCESSIBILITY                                            -->
 <!-- =========================================================== -->
+<div class="tab-content" id="tab-a11y">
+<div class="section-title">♿ Accessibility Report <span class="count-chip">${totalA11yViolations} violations</span></div>
+${Object.keys(a11yData).length === 0
+  ? `<div class="status-card status-info"><h4>ℹ️ No accessibility data collected</h4><p>Axe-core WCAG scans run automatically on UI tests. API tests are excluded (no rendered page).</p></div>`
+  : criticalA11y > 0
+    ? `<div class="status-card status-warn" style="margin-bottom:16px"><h4>⚠️ ${criticalA11y} Critical/Serious Accessibility Violations Found</h4><p>These must be fixed before production release. See WCAG 2.1 AA guidelines.</p></div>`
+    : `<div class="status-card status-ok" style="margin-bottom:16px"><h4>✅ No Critical Accessibility Violations</h4><p>${totalA11yViolations > 0 ? totalA11yViolations + ' minor/moderate issue(s) — review as capacity allows.' : 'All pages passed WCAG 2.1 AA scans.'}</p></div>`
+}
+${Object.keys(a11yData).length > 0 ? `<table>
+  <thead><tr><th>Test</th><th>Violation ID</th><th>Impact</th><th>Description</th><th>Nodes</th><th>Docs</th></tr></thead>
+  <tbody>
+    ${Object.entries(a11yData).flatMap(([testKey, violations]) => {
+      const testTitle = results.find(r => r.testCaseKey === testKey)?.testName ?? testKey;
+      return violations.length === 0
+        ? [`<tr><td colspan="6" style="color:var(--accent-green);padding:16px;text-align:center;font-size:13px">✅ ${escapeHtml(testTitle)} — No violations</td></tr>`]
+        : violations.map(v => `
+    <tr>
+      <td style="font-size:12px">${escapeHtml(testTitle)}</td>
+      <td style="font-family:monospace;font-size:11px;color:#a5b4fc">${v.id}</td>
+      <td><span class="badge badge-a11y-${v.impact}">${v.impact}</span></td>
+      <td style="font-size:12px;max-width:300px">${escapeHtml(v.description)}</td>
+      <td style="text-align:center">${v.nodes}</td>
+      <td><a href="${v.helpUrl}" target="_blank" style="font-size:12px">Docs ↗</a></td>
+    </tr>`);
+    }).join('')}
+  </tbody>
+</table>` : ''}
+</div>
+
+<!-- =========================================================== -->
+<!-- TAB: STEP-BY-STEP LOG                                         -->
+<!-- =========================================================== -->
+<div class="tab-content" id="tab-logs">
 <div class="section-title">📝 Step-by-Step Execution Log <span class="count-chip">${logEntries.length} entries</span></div>
 ${Object.keys(stepsByTest).length === 0
-  ? `<div class="security-card security-info"><h4>ℹ️ No structured logs collected</h4><p>Step logs appear here automatically when tests use <code>enhancedLogger</code>. All tests in this framework are already configured to log steps.</p></div>`
+  ? `<div class="status-card status-info"><h4>ℹ️ No structured logs collected</h4><p>Step logs appear here when tests use <code>enhancedLogger</code>. All tests in this framework log steps automatically.</p></div>`
   : Object.entries(stepsByTest).map(([testKey, { title, entries }]) => {
     const matchedResult = results.find(r => r.testCaseKey === testKey);
     const statusBadge = matchedResult
@@ -662,79 +953,211 @@ ${Object.keys(stepsByTest).length === 0
       <span class="xray-chip-demo" style="font-size:10px">${testKey}</span>
       <span class="timestamp">(${entries.length} steps)</span>
     </div>
-    <span style="color:#64748b;font-size:18px">▼</span>
+    <span style="color:var(--text-muted);font-size:18px;transition:transform 0.2s">▼</span>
   </div>
   <div class="accordion-body">
     ${entries.map(e => `<div class="log-line log-${e.level}">[${e.timestamp}] [${e.level.toUpperCase().padEnd(5)}] ${escapeHtml(e.message)}</div>`).join('\n')}
   </div>
 </div>`;
   }).join('')}
+</div>
+
+<!-- =========================================================== -->
+<!-- TAB: SECURITY                                                 -->
+<!-- =========================================================== -->
+<div class="tab-content" id="tab-security">
+<div class="section-title">🔐 Security & Vulnerability Notes</div>
+<div class="status-card status-ok">
+  <h4>✅ Credential Management — AES-256 Encryption</h4>
+  <p>All passwords stored as encrypted values (AES-256-CBC) in <code>.env</code>. Plain text passwords never committed to source control.</p>
+</div>
+<div class="status-card status-ok">
+  <h4>✅ SQL Injection Prevention — Parameterised Queries</h4>
+  <p>All database queries use parameterised queries (<code>$1, $2</code> placeholders) — never string concatenation. Per OWASP A03:2021.</p>
+</div>
+<div class="status-card status-ok">
+  <h4>✅ Secure Database Connections — SSL/TLS</h4>
+  <p>Database connections support SSL/TLS (<code>DB_SSL=true</code>). Production always has SSL enabled.</p>
+</div>
+<div class="status-card status-ok">
+  <h4>✅ XRAY / JIRA API — Token-Based Auth</h4>
+  <p>JIRA API uses Atlassian API tokens (not passwords). Tokens can be revoked independently.</p>
+</div>
+<div class="status-card status-info">
+  <h4>ℹ️ Dependency Audit</h4>
+  <p>Run <code>npm audit</code> regularly for known CVEs. Run <code>npm audit fix</code> for safe auto-fixes.</p>
+</div>
+<div class="status-card ${failed > 0 ? 'status-warn' : 'status-ok'}">
+  <h4>${failed > 0 ? '⚠️' : '✅'} Test Failure Analysis</h4>
+  <p>${failed > 0
+    ? failed + ' test(s) failed. Review screenshots and errors in the Results tab. Ensure no security-sensitive data in error messages.'
+    : 'All tests passed. No security-related failures detected.'}</p>
+</div>
+</div>
+
+<!-- =========================================================== -->
+<!-- FOOTER                                                        -->
+<!-- =========================================================== -->
+<div class="footer">
+  <p>Generated by <strong>Playwright XRAY Framework</strong> • ${input.runDate} • ${total} tests • ${passRate}% pass rate</p>
+  <p style="margin-top:4px">Built with ❤️ using Playwright + TypeScript + Chart.js + 3D-Force-Graph</p>
+</div>
 
 </div><!-- /container -->
 
 <!-- =========================================================== -->
-<!-- CHART.JS INITIALIZATION                                       -->
+<!-- SCRIPTS                                                       -->
 <!-- =========================================================== -->
 <script>
-Chart.defaults.color = '#64748b';
-Chart.defaults.borderColor = '#1e293b';
+// ---- TAB SWITCHING ----
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  event.target.classList.add('active');
+  // Re-render charts when Charts tab is opened (fixes canvas sizing)
+  if (tabId === 'tab-charts') { setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 50); }
+}
 
-// 1. Doughnut — Pass/Fail/Abort
+// ---- CHART.JS ----
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = 'rgba(45,53,85,0.5)';
+
 new Chart(document.getElementById('pieChart'), {
   type: 'doughnut',
   data: {
     labels: ['Passed', 'Failed', 'Aborted'],
-    datasets: [{ data: [${passed}, ${failed}, ${aborted}], backgroundColor: ['#22c55e','#ef4444','#f59e0b'], borderWidth: 3, borderColor: '#0f172a' }]
+    datasets: [{
+      data: [${passed}, ${failed}, ${aborted}],
+      backgroundColor: ['#22c55e','#ef4444','#f59e0b'],
+      borderWidth: 3, borderColor: 'var(--bg-primary)',
+      hoverOffset: 8
+    }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 } } } }
+    cutout: '55%',
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 16, font: { size: 12 }, usePointStyle: true, pointStyle: 'circle' } }
+    }
   }
 });
 
-// 2. Duration Bar Chart
 new Chart(document.getElementById('durationChart'), {
   type: 'bar',
   data: {
     labels: ${JSON.stringify(testLabels)},
-    datasets: [{ label: 'Duration (s)', data: ${JSON.stringify(durationValues)}, backgroundColor: '#3b82f6', borderRadius: 6 }]
-  },
-  options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
-});
-
-// 3. Load Time Chart
-new Chart(document.getElementById('loadChart'), {
-  type: 'bar',
-  data: {
-    labels: ${JSON.stringify(testLabels)},
-    datasets: [{ label: 'Load Time (s)', data: ${JSON.stringify(loadTimeValues)}, backgroundColor: '#8b5cf6', borderRadius: 6 }]
-  },
-  options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
-});
-
-// 4. Pass/Fail per test histogram
-const histColors = ${JSON.stringify(results.map(r => r.status === 'PASS' ? '#22c55e' : r.status === 'FAIL' ? '#ef4444' : '#f59e0b'))};
-new Chart(document.getElementById('histChart'), {
-  type: 'bar',
-  data: {
-    labels: ${JSON.stringify(testLabels)},
-    datasets: [{ label: 'Result', data: ${JSON.stringify(results.map(r => r.status === 'PASS' ? 1 : 0))}, backgroundColor: histColors, borderRadius: 6 }]
+    datasets: [{
+      label: 'Duration (s)', data: ${JSON.stringify(durationValues)},
+      backgroundColor: 'rgba(99,102,241,0.6)', borderColor: '#6366f1', borderWidth: 1, borderRadius: 8,
+      hoverBackgroundColor: 'rgba(99,102,241,0.8)'
+    }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    scales: { y: { min: 0, max: 1, ticks: { callback: v => v === 1 ? 'PASS' : v === 0 ? 'FAIL' : '' } } },
+    scales: { y: { beginAtZero: true, grid: { color: 'rgba(45,53,85,0.3)' } }, x: { grid: { display: false } } },
     plugins: { legend: { display: false } }
   }
 });
 
-// Accordion toggle
+new Chart(document.getElementById('loadChart'), {
+  type: 'bar',
+  data: {
+    labels: ${JSON.stringify(testLabels)},
+    datasets: [{
+      label: 'Load Time (s)', data: ${JSON.stringify(loadTimeValues)},
+      backgroundColor: 'rgba(167,139,250,0.6)', borderColor: '#a78bfa', borderWidth: 1, borderRadius: 8,
+      hoverBackgroundColor: 'rgba(167,139,250,0.8)'
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: { y: { beginAtZero: true, grid: { color: 'rgba(45,53,85,0.3)' } }, x: { grid: { display: false } } },
+    plugins: { legend: { display: false } }
+  }
+});
+
+const histColors = ${JSON.stringify(results.map(r => r.status === 'PASS' ? 'rgba(34,197,94,0.6)' : r.status === 'FAIL' ? 'rgba(239,68,68,0.6)' : 'rgba(245,158,11,0.6)'))};
+new Chart(document.getElementById('histChart'), {
+  type: 'bar',
+  data: {
+    labels: ${JSON.stringify(testLabels)},
+    datasets: [{ label: 'Result', data: ${JSON.stringify(results.map(r => r.status === 'PASS' ? 1 : 0))}, backgroundColor: histColors, borderRadius: 8, borderWidth: 1, borderColor: ${JSON.stringify(results.map(r => r.status === 'PASS' ? '#22c55e' : r.status === 'FAIL' ? '#ef4444' : '#f59e0b'))} }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: { y: { min: 0, max: 1, ticks: { callback: v => v === 1 ? 'PASS' : v === 0 ? 'FAIL' : '' }, grid: { color: 'rgba(45,53,85,0.3)' } }, x: { grid: { display: false } } },
+    plugins: { legend: { display: false } }
+  }
+});
+
+// ---- 3D FORCE GRAPH ----
+(function init3DGraph() {
+  const graphData = {
+    nodes: ${JSON.stringify(graphNodes)},
+    links: ${JSON.stringify(graphLinks)}
+  };
+
+  const container = document.getElementById('3d-graph');
+  if (!container || typeof ForceGraph3D === 'undefined') return;
+
+  const Graph = ForceGraph3D()(container)
+    .graphData(graphData)
+    .backgroundColor('#0a0e1a00')
+    .nodeVal('val')
+    .nodeColor('color')
+    .nodeOpacity(0.9)
+    .linkColor('color')
+    .linkWidth(1.5)
+    .linkOpacity(0.6)
+    .nodeThreeObject(node => {
+      const sprite = new SpriteText(node.label);
+      sprite.color = node.color;
+      sprite.textHeight = node.group === 'run' ? 5 : node.group === 'module' || node.group === 'quality' ? 4 : 3;
+      sprite.fontFace = 'Inter, sans-serif';
+      sprite.fontWeight = 'bold';
+      sprite.backgroundColor = 'rgba(10, 14, 26, 0.7)';
+      sprite.padding = 3;
+      sprite.borderRadius = 4;
+      return sprite;
+    })
+    .nodeThreeObjectExtend(false)
+    .d3AlphaDecay(0.04)
+    .d3VelocityDecay(0.3)
+    .warmupTicks(80)
+    .cooldownTicks(120)
+    .onNodeClick(node => {
+      const distance = 120;
+      const distRatio = 1 + distance / Math.hypot(node.x, node.y, node.z);
+      Graph.cameraPosition(
+        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+        node, 1200
+      );
+    });
+
+  // Auto-rotate
+  let angle = 0;
+  function rotate() {
+    Graph.cameraPosition({
+      x: 200 * Math.sin(angle),
+      z: 200 * Math.cos(angle)
+    });
+    angle += 0.002;
+    requestAnimationFrame(rotate);
+  }
+  rotate();
+})();
+
+// ---- ACCORDION ----
 function toggleAcc(header) {
   const body = header.nextElementSibling;
   body.classList.toggle('open');
-  header.querySelector('span:last-child').textContent = body.classList.contains('open') ? '▲' : '▼';
+  const arrow = header.querySelector('span:last-child');
+  arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+  arrow.style.transform = body.classList.contains('open') ? 'rotate(180deg)' : '';
 }
 
-// Screenshot modal
+// ---- SCREENSHOT MODAL ----
 function openScreenshot(src) {
   document.getElementById('screenshotModalImg').src = src;
   document.getElementById('screenshotModal').classList.add('open');

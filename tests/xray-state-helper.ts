@@ -11,4 +11,4 @@
 //   deeply nested relative paths like "../../utils/jira-xray/xray-state".
 // =============================================================================
 
-export { appendTestResult } from '../utils/jira-xray/xray-state';
+export { appendTestResult, appendPerfData, appendA11yData, appendLogEntries } from '../utils/jira-xray/xray-state';
