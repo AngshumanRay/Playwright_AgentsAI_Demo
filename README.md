@@ -1,7 +1,7 @@
-# Playwright + JIRA XRAY — Automated Testing Framework
+# Playwright AutoAgent – AI Automation Framework
 # =============================================================================
 
-> **Beginner-friendly** automated test framework that runs browser (UI) and API tests,
+> **Beginner-friendly** AI-powered automation framework that runs browser (UI) and API tests,
 > then reports results directly into JIRA XRAY — with a beautiful HTML report.
 > No coding experience needed to run it; this guide walks you through every step.
 
@@ -265,7 +265,7 @@ After running tests, you'll see output like this in the terminal:
 
 ```
 ──────────────────────────────────────────────────────────
-  🚀 GLOBAL SETUP — Starting Framework Initialization
+  🚀 GLOBAL SETUP — Starting Playwright AutoAgent
 ──────────────────────────────────────────────────────────
 
 📋 Utility Status Dashboard
@@ -581,6 +581,6 @@ npm run test:debug
 ---
 
 *Last updated: 4 March 2026*
-*Framework: Playwright + JIRA XRAY + Multi-Utility Architecture*
+*Framework: Playwright AutoAgent – AI Automation Framework*
 *Tests: 3 Login (UI) + 3 API (REST) + 5 Navigation (UI) = 11 total*
 *XRAY: Test Set = manual setup, Test Execution onward = fully automated*

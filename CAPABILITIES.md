@@ -1666,6 +1666,6 @@ Every utility is controlled by your `.env` file. Here's the master switch for ea
 ---
 
 *Last updated: 4 March 2026*
-*Framework: Playwright + JIRA XRAY + Multi-Utility Architecture*
+*Framework: Playwright AutoAgent – AI Automation Framework*
 *Tests: 3 Login (UI) + 3 API (REST) + 5 Navigation (UI) = 11 total*
 *Next: Read [WALKTHROUGH.md](WALKTHROUGH.md) to see the end-to-end XRAY flow, or [WRITE_A_TEST.md](WRITE_A_TEST.md) to write your first test.*

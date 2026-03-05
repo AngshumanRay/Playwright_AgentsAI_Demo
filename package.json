@@ -1,6 +1,7 @@
 {
-  "name": "playwrightjira_xray_opus4.6",
+  "name": "playwright-autoagent",
   "version": "1.0.0",
+  "description": "Playwright AutoAgent – AI Automation Framework",
   "main": "index.js",
   "scripts": {
     "test": "npx playwright test",

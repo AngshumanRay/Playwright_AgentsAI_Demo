@@ -84,7 +84,7 @@ import { logger } from '../utils/helpers/logger';
 // without blocking. It uses "await" to wait for each step to finish.
 // =============================================================================
 export default async function globalSetup(_config: FullConfig): Promise<void> {
-  logger.section('🚀 GLOBAL SETUP — Starting Framework Initialization');
+  logger.section('🚀 GLOBAL SETUP — Starting Playwright AutoAgent');
   logger.info(`Environment: ${config.app.environment}`);
   logger.info(`Application URL: ${config.app.baseUrl}`);
   logger.info(`Sprint Number: ${config.xray.sprintNumber}`);
@@ -107,7 +107,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
 
   // Clear any previous run's collected data in enhanced logger
   enhancedLogger.clear();
-  enhancedLogger.info('Framework initialized', 'GlobalSetup');
+  enhancedLogger.info('Playwright AutoAgent initialized', 'GlobalSetup');
 
   // ==========================================================================
   // JIRA/XRAY SETUP

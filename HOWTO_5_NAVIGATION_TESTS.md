@@ -558,5 +558,5 @@ Follow these exact steps to add YOUR own tests:
 ---
 
 *Last updated: 4 March 2026*
-*Framework: Playwright + JIRA XRAY + Multi-Utility Architecture*
+*Framework: Playwright AutoAgent – AI Automation Framework*
 *Tests: 3 Login (UI) + 3 API (REST) + 5 Navigation (UI) = 11 total*
