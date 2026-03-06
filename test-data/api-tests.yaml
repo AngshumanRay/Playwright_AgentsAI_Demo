@@ -1,0 +1,87 @@
+# =============================================================================
+# test-data/api-tests.yaml — TEST DATA FOR API FEATURE TESTS
+# =============================================================================
+# PURPOSE:
+#   This file stores all test data for the API test suite externally.
+#   Each test case references an endpoint, expected status, and validation
+#   criteria — all configurable without modifying the test code.
+#
+# STRUCTURE:
+#   Each top-level key is the XRAY test case ID (e.g., PROJ-104).
+#   Under it:
+#     testCase  → Friendly name shown in logs and reports
+#     data      → Inputs: endpoint, method, payload, expected values
+#
+# HOW TO ADD A NEW API TEST:
+#   1. Add a new PROJ-XXX block below
+#   2. Fill in the testCase name, endpoint, method, and expected values
+#   3. In api.test.ts, reference it via: getTestData('PROJ-XXX')
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC04 — GET a blog post and validate its structure
+# ─────────────────────────────────────────────────────────────────────────────
+PROJ-104:
+  testCase: "TC04: GET /posts/1 — Should return a valid blog post with correct fields"
+  data:
+    baseUrl: "https://jsonplaceholder.typicode.com"
+    endpoint: "/posts/1"
+    method: "GET"
+    expectedStatus: 200
+    expectedFields:
+      - "id"
+      - "userId"
+      - "title"
+      - "body"
+    validations:
+      id: 1
+      titleType: "string"
+      bodyType: "string"
+    description: "Fetch blog post #1 and validate response structure"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC05 — POST to create a new resource and verify 201 Created
+# ─────────────────────────────────────────────────────────────────────────────
+PROJ-105:
+  testCase: "TC05: POST /posts — Should create a new post and return 201 Created"
+  data:
+    baseUrl: "https://jsonplaceholder.typicode.com"
+    endpoint: "/posts"
+    method: "POST"
+    expectedStatus: 201
+    payload:
+      title: "Demo Post Created by Playwright API Test"
+      body: "This post was created automatically by our test framework to verify the POST endpoint works correctly."
+      userId: 1
+    description: "Create a new blog post and verify 201 + echoed data"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TC06 — GET user profile and validate all key fields
+# ─────────────────────────────────────────────────────────────────────────────
+PROJ-106:
+  testCase: "TC06: GET /users/1 — Should return a complete user profile with nested fields"
+  data:
+    baseUrl: "https://jsonplaceholder.typicode.com"
+    endpoint: "/users/1"
+    method: "GET"
+    expectedStatus: 200
+    expectedFields:
+      - "id"
+      - "name"
+      - "email"
+      - "phone"
+      - "website"
+      - "address"
+      - "company"
+    validations:
+      id: 1
+      emailContains: "@"
+      nestedFields:
+        address:
+          - "street"
+          - "city"
+          - "zipcode"
+        company:
+          - "name"
+          - "catchPhrase"
+    description: "Fetch user #1 and validate all fields including nested objects"

@@ -48,17 +48,19 @@ import { apiGet, apiPost } from '../utils/api/api-helper';
 // Import enhanced logger so all API steps appear in the HTML report
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 
+// Import the data-driven test data loader (reads from YAML files)
+import { getTestData } from '../utils/helpers/test-data-loader';
+
 // =============================================================================
-// DEMO API BASE URL — JSONPlaceholder (no credentials needed)
+// TEST DATA — DATA-DRIVEN (loaded from test-data/api-tests.yaml)
 // =============================================================================
-// JSONPlaceholder is a public fake REST API with:
-//   GET  /posts      → list of 100 blog posts
-//   GET  /posts/:id  → single blog post
-//   POST /posts      → simulate creating a post (returns 201 + the created object)
-//   GET  /users/:id  → user profile with name, email, address, company
-//   GET  /todos/:id  → a todo item with title + completed status
-// ALL requests return realistic JSON — perfect for API test demos.
-const API_BASE = 'https://jsonplaceholder.typicode.com';
+// All test inputs (endpoints, payloads, expected values) are stored EXTERNALLY:
+//   test-data/api-tests.yaml
+//
+// Each test reads its data using getTestData('api-tests.yaml', 'PROJ-XXX').
+// To add a new API test, add a PROJ-XXX block in the YAML file.
+// =============================================================================
+const DATA_FILE = 'api-tests.yaml';
 
 // =============================================================================
 // TEST GROUP: API Feature Tests
@@ -89,19 +91,24 @@ test.describe('API Feature Tests', () => {
       annotation: { type: 'xray', description: 'PROJ-104' },
     },
     async ({ xrayTestKey }) => {
-      enhancedLogger.section(`▶ Running Test: TC04 | XRAY: ${xrayTestKey}`);
+      // ── Load test data from YAML (data-driven) ──
+      const td = getTestData(DATA_FILE, 'PROJ-104');
+      const d = td.data as Record<string, unknown>;
+      const baseUrl = d.baseUrl as string;
+      const endpoint = d.endpoint as string;
+      const expectedStatus = d.expectedStatus as number;
+      const expectedFields = d.expectedFields as string[];
+      const validations = d.validations as Record<string, unknown>;
+
+      enhancedLogger.section(`▶ Running Test: ${td.testCase} | XRAY: ${xrayTestKey}`);
+      enhancedLogger.info(`📂 Test data loaded from ${DATA_FILE} for ${xrayTestKey}`, xrayTestKey);
 
       // -----------------------------------------------------------------------
       // STEP 1: Send GET request to fetch post #1
       // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 1: Send GET request to /posts/1', xrayTestKey);
+      enhancedLogger.step(`Step 1: Send GET request to ${endpoint}`, xrayTestKey);
 
-      const response = await apiGet<{
-        id:     number;
-        userId: number;
-        title:  string;
-        body:   string;
-      }>(`${API_BASE}/posts/1`);
+      const response = await apiGet<Record<string, unknown>>(`${baseUrl}${endpoint}`);
 
       enhancedLogger.info(
         `Response received — Status: ${response.status}, Duration: ${response.durationMs}ms`,
@@ -109,37 +116,36 @@ test.describe('API Feature Tests', () => {
       );
 
       // -----------------------------------------------------------------------
-      // STEP 2: Validate HTTP status code is 200
+      // STEP 2: Validate HTTP status code
       // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 2: Validate HTTP status is 200 OK', xrayTestKey);
-      expect(response.status).toBe(200);
+      enhancedLogger.step(`Step 2: Validate HTTP status is ${expectedStatus}`, xrayTestKey);
+      expect(response.status).toBe(expectedStatus);
       expect(response.success).toBe(true);
-      enhancedLogger.info('✅ Status 200 OK confirmed', xrayTestKey);
+      enhancedLogger.info(`✅ Status ${expectedStatus} confirmed`, xrayTestKey);
 
       // -----------------------------------------------------------------------
       // STEP 3: Validate response body has all required fields
       // -----------------------------------------------------------------------
       enhancedLogger.step('Step 3: Validate response body structure', xrayTestKey);
       expect(response.data).not.toBeNull();
-      expect(response.data).toHaveProperty('id');
-      expect(response.data).toHaveProperty('userId');
-      expect(response.data).toHaveProperty('title');
-      expect(response.data).toHaveProperty('body');
-      enhancedLogger.info('✅ All required fields present: id, userId, title, body', xrayTestKey);
+      for (const field of expectedFields) {
+        expect(response.data).toHaveProperty(field);
+      }
+      enhancedLogger.info(`✅ All required fields present: ${expectedFields.join(', ')}`, xrayTestKey);
 
       // -----------------------------------------------------------------------
       // STEP 4: Validate field values are correct
       // -----------------------------------------------------------------------
       enhancedLogger.step('Step 4: Validate field values are correct', xrayTestKey);
-      expect(response.data!.id).toBe(1);
-      expect(typeof response.data!.title).toBe('string');
-      expect(response.data!.title.length).toBeGreaterThan(0);
-      expect(typeof response.data!.body).toBe('string');
-      expect(response.data!.body.length).toBeGreaterThan(0);
+      expect(response.data!['id']).toBe(validations['id']);
+      expect(typeof response.data!['title']).toBe(validations['titleType']);
+      expect((response.data!['title'] as string).length).toBeGreaterThan(0);
+      expect(typeof response.data!['body']).toBe(validations['bodyType']);
+      expect((response.data!['body'] as string).length).toBeGreaterThan(0);
 
-      enhancedLogger.info(`✅ Post ID: ${response.data!.id}`, xrayTestKey);
-      enhancedLogger.info(`✅ Post Title: "${response.data!.title}"`, xrayTestKey);
-      enhancedLogger.pass(`TC04 passed — GET /posts/1 returned valid post (${response.durationMs}ms)`, xrayTestKey);
+      enhancedLogger.info(`✅ Post ID: ${response.data!['id']}`, xrayTestKey);
+      enhancedLogger.info(`✅ Post Title: "${response.data!['title']}"`, xrayTestKey);
+      enhancedLogger.pass(`TC04 passed — GET ${endpoint} returned valid post (${response.durationMs}ms)`, xrayTestKey);
     }
   );
 
@@ -170,32 +176,34 @@ test.describe('API Feature Tests', () => {
       annotation: { type: 'xray', description: 'PROJ-105' },
     },
     async ({ xrayTestKey }) => {
-      enhancedLogger.section(`▶ Running Test: TC05 | XRAY: ${xrayTestKey}`);
+      // ── Load test data from YAML (data-driven) ──
+      const td = getTestData(DATA_FILE, 'PROJ-105');
+      const d = td.data as Record<string, unknown>;
+      const baseUrl = d.baseUrl as string;
+      const endpoint = d.endpoint as string;
+      const expectedStatus = d.expectedStatus as number;
+      const payload = d.payload as Record<string, unknown>;
+
+      enhancedLogger.section(`▶ Running Test: ${td.testCase} | XRAY: ${xrayTestKey}`);
+      enhancedLogger.info(`📂 Test data loaded from ${DATA_FILE} for ${xrayTestKey}`, xrayTestKey);
 
       // -----------------------------------------------------------------------
-      // STEP 1: Prepare the request payload
+      // STEP 1: Prepare the request payload (from YAML)
       // -----------------------------------------------------------------------
       enhancedLogger.step('Step 1: Prepare new post payload', xrayTestKey);
-
-      const newPost = {
-        title:  'Demo Post Created by Playwright API Test',
-        body:   'This post was created automatically by our test framework to verify the POST endpoint works correctly.',
-        userId: 1,
-      };
-
-      enhancedLogger.info(`Sending payload: ${JSON.stringify(newPost)}`, xrayTestKey);
+      enhancedLogger.info(`Sending payload: ${JSON.stringify(payload)}`, xrayTestKey);
 
       // -----------------------------------------------------------------------
       // STEP 2: Send POST request
       // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 2: Send POST request to /posts', xrayTestKey);
+      enhancedLogger.step(`Step 2: Send POST request to ${endpoint}`, xrayTestKey);
 
       const response = await apiPost<{
         id:     number;
         title:  string;
         body:   string;
         userId: number;
-      }>(`${API_BASE}/posts`, newPost);
+      }>(`${baseUrl}${endpoint}`, payload);
 
       enhancedLogger.info(
         `Response received — Status: ${response.status}, Duration: ${response.durationMs}ms`,
@@ -205,24 +213,24 @@ test.describe('API Feature Tests', () => {
       // -----------------------------------------------------------------------
       // STEP 3: Validate status is 201 Created
       // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 3: Validate HTTP status is 201 Created', xrayTestKey);
-      expect(response.status).toBe(201);
+      enhancedLogger.step(`Step 3: Validate HTTP status is ${expectedStatus} Created`, xrayTestKey);
+      expect(response.status).toBe(expectedStatus);
       expect(response.success).toBe(true);
-      enhancedLogger.info('✅ Status 201 Created confirmed', xrayTestKey);
+      enhancedLogger.info(`✅ Status ${expectedStatus} Created confirmed`, xrayTestKey);
 
       // -----------------------------------------------------------------------
       // STEP 4: Validate the server echoed back our data + assigned an ID
       // -----------------------------------------------------------------------
       enhancedLogger.step('Step 4: Validate server echoed data and assigned new ID', xrayTestKey);
       expect(response.data).not.toBeNull();
-      expect(response.data!.title).toBe(newPost.title);
-      expect(response.data!.body).toBe(newPost.body);
-      expect(response.data!.userId).toBe(newPost.userId);
+      expect(response.data!.title).toBe(payload['title']);
+      expect(response.data!.body).toBe(payload['body']);
+      expect(response.data!.userId).toBe(payload['userId']);
       expect(response.data!.id).toBeGreaterThan(0); // Server assigned a new ID
 
       enhancedLogger.info(`✅ Post created with ID: ${response.data!.id}`, xrayTestKey);
       enhancedLogger.info(`✅ Title echoed back: "${response.data!.title}"`, xrayTestKey);
-      enhancedLogger.pass(`TC05 passed — POST /posts returned 201 Created with id=${response.data!.id} (${response.durationMs}ms)`, xrayTestKey);
+      enhancedLogger.pass(`TC05 passed — POST ${endpoint} returned ${expectedStatus} Created with id=${response.data!.id} (${response.durationMs}ms)`, xrayTestKey);
     }
   );
 
@@ -249,30 +257,25 @@ test.describe('API Feature Tests', () => {
       annotation: { type: 'xray', description: 'PROJ-106' },
     },
     async ({ xrayTestKey }) => {
-      enhancedLogger.section(`▶ Running Test: TC06 | XRAY: ${xrayTestKey}`);
+      // ── Load test data from YAML (data-driven) ──
+      const td = getTestData(DATA_FILE, 'PROJ-106');
+      const d = td.data as Record<string, unknown>;
+      const baseUrl = d.baseUrl as string;
+      const endpoint = d.endpoint as string;
+      const expectedStatus = d.expectedStatus as number;
+      const expectedFields = d.expectedFields as string[];
+      const validations = d.validations as Record<string, unknown>;
+      const nestedFields = (validations['nestedFields'] ?? {}) as Record<string, string[]>;
+
+      enhancedLogger.section(`▶ Running Test: ${td.testCase} | XRAY: ${xrayTestKey}`);
+      enhancedLogger.info(`📂 Test data loaded from ${DATA_FILE} for ${xrayTestKey}`, xrayTestKey);
 
       // -----------------------------------------------------------------------
       // STEP 1: Send GET request to fetch user #1
       // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 1: Send GET request to /users/1', xrayTestKey);
+      enhancedLogger.step(`Step 1: Send GET request to ${endpoint}`, xrayTestKey);
 
-      const response = await apiGet<{
-        id:       number;
-        name:     string;
-        username: string;
-        email:    string;
-        phone:    string;
-        website:  string;
-        address: {
-          street:  string;
-          city:    string;
-          zipcode: string;
-        };
-        company: {
-          name:        string;
-          catchPhrase: string;
-        };
-      }>(`${API_BASE}/users/1`);
+      const response = await apiGet<Record<string, unknown>>(`${baseUrl}${endpoint}`);
 
       enhancedLogger.info(
         `Response received — Status: ${response.status}, Duration: ${response.durationMs}ms`,
@@ -280,12 +283,12 @@ test.describe('API Feature Tests', () => {
       );
 
       // -----------------------------------------------------------------------
-      // STEP 2: Validate status 200
+      // STEP 2: Validate status
       // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 2: Validate HTTP status is 200 OK', xrayTestKey);
-      expect(response.status).toBe(200);
+      enhancedLogger.step(`Step 2: Validate HTTP status is ${expectedStatus}`, xrayTestKey);
+      expect(response.status).toBe(expectedStatus);
       expect(response.success).toBe(true);
-      enhancedLogger.info('✅ Status 200 OK confirmed', xrayTestKey);
+      enhancedLogger.info(`✅ Status ${expectedStatus} OK confirmed`, xrayTestKey);
 
       // -----------------------------------------------------------------------
       // STEP 3: Validate top-level user fields
@@ -294,40 +297,37 @@ test.describe('API Feature Tests', () => {
       expect(response.data).not.toBeNull();
 
       const user = response.data!;
-      expect(user.id).toBe(1);
-      expect(typeof user.name).toBe('string');
-      expect(user.name.length).toBeGreaterThan(0);
-      expect(typeof user.email).toBe('string');
-      expect(user.email).toContain('@');   // basic email format check
-      expect(typeof user.phone).toBe('string');
-      expect(typeof user.website).toBe('string');
+      expect(user['id']).toBe(validations['id']);
 
-      enhancedLogger.info(`✅ User ID:    ${user.id}`, xrayTestKey);
-      enhancedLogger.info(`✅ User Name:  ${user.name}`, xrayTestKey);
-      enhancedLogger.info(`✅ Email:      ${user.email}`, xrayTestKey);
-      enhancedLogger.info(`✅ Phone:      ${user.phone}`, xrayTestKey);
+      for (const field of expectedFields) {
+        expect(user).toHaveProperty(field);
+      }
 
-      // -----------------------------------------------------------------------
-      // STEP 4: Validate nested address object
-      // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 4: Validate nested address object', xrayTestKey);
-      expect(user.address).toHaveProperty('street');
-      expect(user.address).toHaveProperty('city');
-      expect(user.address).toHaveProperty('zipcode');
-      expect(user.address.city.length).toBeGreaterThan(0);
-      enhancedLogger.info(`✅ Address City: ${user.address.city}, Zip: ${user.address.zipcode}`, xrayTestKey);
+      // Email format check
+      if (validations['emailContains']) {
+        expect(user['email'] as string).toContain(validations['emailContains'] as string);
+      }
+
+      enhancedLogger.info(`✅ User ID:    ${user['id']}`, xrayTestKey);
+      enhancedLogger.info(`✅ User Name:  ${user['name']}`, xrayTestKey);
+      enhancedLogger.info(`✅ Email:      ${user['email']}`, xrayTestKey);
+      enhancedLogger.info(`✅ Phone:      ${user['phone']}`, xrayTestKey);
 
       // -----------------------------------------------------------------------
-      // STEP 5: Validate nested company object
+      // STEP 4: Validate nested objects (from YAML nestedFields config)
       // -----------------------------------------------------------------------
-      enhancedLogger.step('Step 5: Validate nested company object', xrayTestKey);
-      expect(user.company).toHaveProperty('name');
-      expect(user.company).toHaveProperty('catchPhrase');
-      expect(user.company.name.length).toBeGreaterThan(0);
-      enhancedLogger.info(`✅ Company: ${user.company.name}`, xrayTestKey);
-      enhancedLogger.info(`✅ Catch Phrase: "${user.company.catchPhrase}"`, xrayTestKey);
+      let stepNum = 4;
+      for (const [parentField, childFields] of Object.entries(nestedFields)) {
+        enhancedLogger.step(`Step ${stepNum}: Validate nested ${parentField} object`, xrayTestKey);
+        const parentObj = user[parentField] as Record<string, unknown>;
+        for (const child of childFields) {
+          expect(parentObj).toHaveProperty(child);
+        }
+        enhancedLogger.info(`✅ ${parentField} fields validated: ${childFields.join(', ')}`, xrayTestKey);
+        stepNum++;
+      }
 
-      enhancedLogger.pass(`TC06 passed — GET /users/1 returned full user profile (${response.durationMs}ms)`, xrayTestKey);
+      enhancedLogger.pass(`TC06 passed — GET ${endpoint} returned full user profile (${response.durationMs}ms)`, xrayTestKey);
     }
   );
 

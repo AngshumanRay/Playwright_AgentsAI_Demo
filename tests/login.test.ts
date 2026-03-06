@@ -49,25 +49,22 @@ import { LoginPage } from '../pages/LoginPage';
 // Import enhanced logger — every step logged here appears in the HTML report
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 
+// Import the data-driven test data loader (reads from YAML files)
+import { getTestData } from '../utils/helpers/test-data-loader';
+
 // =============================================================================
-// TEST CREDENTIALS
+// TEST DATA — DATA-DRIVEN (loaded from test-data/login-tests.yaml)
 // =============================================================================
-// These are the REAL login credentials for the demo site:
-//   https://the-internet.herokuapp.com/login
+// All test inputs (credentials, expected results) are stored EXTERNALLY in:
+//   test-data/login-tests.yaml
 //
-// The demo site tells you the credentials on the page itself — so this is safe
-// to hardcode for validation purposes.
-// In a real project, store credentials in .env (never hardcode real passwords).
+// Each test case reads its data using getTestData('login-tests.yaml', 'PROJ-XXX').
+// This makes tests reusable — change data without modifying code.
 //
-//   Valid username : tomsmith
-//   Valid password : SuperSecretPassword!
-//   Wrong password : anything else (e.g., WrongPassword)
+// To update credentials or expected messages, edit test-data/login-tests.yaml.
+// To add a new login test case, add a PROJ-XXX block in the YAML file.
 // =============================================================================
-const TEST_CREDENTIALS = {
-  validUsername: 'tomsmith',
-  validPassword: 'SuperSecretPassword!',
-  wrongPassword: 'WrongPassword',
-};
+const DATA_FILE = 'login-tests.yaml';
 
 // =============================================================================
 // TEST GROUP: Login Feature Tests
@@ -102,8 +99,10 @@ test.describe('Login Feature Tests', () => {
     },
     async ({ page, xrayTestKey }) => {
 
-      // Log which test we're running and its XRAY key
-      enhancedLogger.section(`▶ Running Test: TC01 | XRAY: ${xrayTestKey}`);
+      // ── Load test data from YAML (data-driven) ──
+      const td = getTestData(DATA_FILE, 'PROJ-101');
+      enhancedLogger.section(`▶ Running Test: ${td.testCase} | XRAY: ${xrayTestKey}`);
+      enhancedLogger.info(`📂 Test data loaded from ${DATA_FILE} for ${xrayTestKey}`, xrayTestKey);
 
       const loginPage = new LoginPage(page);
 
@@ -111,15 +110,15 @@ test.describe('Login Feature Tests', () => {
       enhancedLogger.step('Step 1: Navigate to the login page', xrayTestKey);
       await loginPage.navigateToLoginPage();
 
-      // Step 2: Perform login with valid credentials
+      // Step 2: Perform login with credentials from YAML
       enhancedLogger.step('Step 2: Enter valid credentials and submit', xrayTestKey);
-      await loginPage.login(TEST_CREDENTIALS.validUsername, TEST_CREDENTIALS.validPassword);
+      await loginPage.login(td.data.username as string, td.data.password as string);
 
       // Step 3: Verify login was successful
       enhancedLogger.step('Step 3: Verify user is now on the Secure Area page', xrayTestKey);
       await loginPage.verifySuccessfulLogin();
 
-      expect(loginPage.getCurrentUrl()).toContain('/secure');
+      expect(loginPage.getCurrentUrl()).toContain(td.data.expectedUrlFragment as string);
 
       enhancedLogger.pass(`TC01 passed — User logged in successfully`, xrayTestKey);
     }
@@ -150,7 +149,10 @@ test.describe('Login Feature Tests', () => {
     },
     async ({ page, xrayTestKey }) => {
 
-      enhancedLogger.section(`▶ Running Test: TC02 | XRAY: ${xrayTestKey}`);
+      // ── Load test data from YAML (data-driven) ──
+      const td = getTestData(DATA_FILE, 'PROJ-102');
+      enhancedLogger.section(`▶ Running Test: ${td.testCase} | XRAY: ${xrayTestKey}`);
+      enhancedLogger.info(`📂 Test data loaded from ${DATA_FILE} for ${xrayTestKey}`, xrayTestKey);
 
       const loginPage = new LoginPage(page);
 
@@ -158,13 +160,13 @@ test.describe('Login Feature Tests', () => {
       await loginPage.navigateToLoginPage();
 
       enhancedLogger.step('Step 2: Enter valid username but wrong password', xrayTestKey);
-      await loginPage.login(TEST_CREDENTIALS.validUsername, TEST_CREDENTIALS.wrongPassword);
+      await loginPage.login(td.data.username as string, td.data.password as string);
 
       enhancedLogger.step('Step 3: Verify error message is displayed', xrayTestKey);
-      await loginPage.verifyLoginErrorMessage('Your password is invalid!');
+      await loginPage.verifyLoginErrorMessage(td.data.expectedErrorMessage as string);
 
       enhancedLogger.step('Step 4: Verify user is still on the login page', xrayTestKey);
-      expect(loginPage.getCurrentUrl()).toContain('/login');
+      expect(loginPage.getCurrentUrl()).toContain(td.data.expectedUrlFragment as string);
 
       enhancedLogger.pass(`TC02 passed — Error message shown for wrong password`, xrayTestKey);
     }
@@ -193,7 +195,10 @@ test.describe('Login Feature Tests', () => {
     },
     async ({ page, xrayTestKey }) => {
 
-      enhancedLogger.section(`▶ Running Test: TC03 | XRAY: ${xrayTestKey}`);
+      // ── Load test data from YAML (data-driven) ──
+      const td = getTestData(DATA_FILE, 'PROJ-103');
+      enhancedLogger.section(`▶ Running Test: ${td.testCase} | XRAY: ${xrayTestKey}`);
+      enhancedLogger.info(`📂 Test data loaded from ${DATA_FILE} for ${xrayTestKey}`, xrayTestKey);
 
       const loginPage = new LoginPage(page);
 
@@ -204,10 +209,10 @@ test.describe('Login Feature Tests', () => {
       await loginPage.clickLoginButton();
 
       enhancedLogger.step('Step 3: Verify validation flash message is shown', xrayTestKey);
-      await loginPage.verifyLoginErrorMessage('Your username is invalid!');
+      await loginPage.verifyLoginErrorMessage(td.data.expectedErrorMessage as string);
 
       const currentUrl = loginPage.getCurrentUrl();
-      expect(currentUrl).toContain('/login');
+      expect(currentUrl).toContain(td.data.expectedUrlFragment as string);
 
       enhancedLogger.info(`Validation confirmed: empty credentials rejected, URL is still: ${currentUrl}`, xrayTestKey);
 

@@ -716,9 +716,12 @@ reports/execution-report-2026-03-03.html
 | `utils/jira-xray/xray-result-updater.ts` | The "grader" — marks each test as PASS or FAIL in JIRA and attaches screenshots |
 | `utils/jira-xray/xray-state.ts` | The "sticky note" — saves the Execution ID and results between steps |
 | `utils/reporting/report-generator.ts` | The "publisher" — builds the HTML report with charts, screenshots, and step logs |
-| `utils/helpers/enhanced-logger.ts` | The "data collector" — gathers structured log/perf/a11y data for the report |
+| `utils/helpers/enhanced-logger.ts` | The "data collector" — gathers structured log/perf/a11y data + PASS/FAIL log summary |
 | `utils/helpers/logger.ts` | The "announcer" — prints formatted, coloured messages in the terminal |
+| `utils/helpers/test-data-loader.ts` | The "librarian" — reads test input data from YAML files so tests don't hardcode values |
 | `utils/helpers/screenshot.ts` | The "photographer" — captures a browser screenshot when a test fails |
+| `test-data/*.yaml` | The "answer sheets" — external YAML files with test inputs (usernames, URLs, expected results) |
+| `logs/test-run-*.log` | The "diary" — log file for each run, with a PASS/FAIL summary at the very top |
 | `tests/global-setup.ts` | The "pre-flight checklist" — runs once before any test (auth, fetch, create execution) |
 | `tests/global-teardown.ts` | The "cleanup crew" — runs once after all tests (uploads results, generates report) |
 | `tests/xray-test-fixture.ts` | The "score tracker" — wraps every test to save its result automatically |

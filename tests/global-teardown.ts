@@ -86,6 +86,10 @@ export default async function globalTeardown(_config: FullConfig): Promise<void>
     // Still generate the HTML report even without XRAY
     // IMPORTANT: Generate report BEFORE clearing state (report reads perf/a11y data)
     await runPostRunTasks(state, _config);
+
+    // Write PASS/FAIL summary to the TOP of the log file
+    writeLogFileSummary(state);
+
     clearXrayState();
     return;
   }
@@ -151,11 +155,15 @@ export default async function globalTeardown(_config: FullConfig): Promise<void>
   }
 
   // ==========================================================================
-  // STEP 5: Generate Report + DB cleanup
+  // STEP 5: Generate Report + DB cleanup + Log Summary
   // ==========================================================================
   // IMPORTANT: Generate report BEFORE clearing state — the report reads
   // perf/a11y/log data from the shared state file (cross-process data).
   await runPostRunTasks(state, _config);
+
+  // Write PASS/FAIL summary to the TOP of the log file
+  writeLogFileSummary(state);
+
   clearXrayState();
 
   logger.section('✅ GLOBAL TEARDOWN COMPLETE — All done!\n   📂 Check reports/ for the HTML execution report.');
@@ -221,5 +229,33 @@ async function runPostRunTasks(state: NonNullable<ReturnType<typeof readXrayStat
   if (isDbConfigured()) {
     logger.section('🗃️  DATABASE — Cleaning Up Test Data');
     await cleanupTestData();
+  }
+}
+
+// =============================================================================
+// HELPER: writeLogFileSummary
+// =============================================================================
+// Writes a PASS/FAIL summary at the TOP of the log file so anyone opening
+// the log file immediately sees the overall test execution status.
+// =============================================================================
+function writeLogFileSummary(state: NonNullable<ReturnType<typeof readXrayState>>): void {
+  logger.section('📋 LOG SUMMARY — Writing PASS/FAIL summary to log file');
+  try {
+    const summaryResults = state.results.map(r => ({
+      testCaseKey:  r.testCaseKey,
+      testName:     r.testName ?? r.testCaseKey,
+      status:       r.status as 'PASS' | 'FAIL' | 'ABORTED',
+      durationMs:   r.durationMs,
+      errorMessage: r.errorMessage,
+    }));
+
+    enhancedLogger.writeTestSummaryToLogFile(summaryResults);
+
+    const logPath = enhancedLogger.getLogFilePath();
+    if (logPath) {
+      logger.info(`✅ PASS/FAIL summary written to top of: ${logPath}`);
+    }
+  } catch (err) {
+    logger.warn(`Could not write log summary: ${(err as Error).message}`);
   }
 }

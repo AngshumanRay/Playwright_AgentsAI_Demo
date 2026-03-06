@@ -1,47 +1,38 @@
 {
   "name": "playwright-autoagent",
   "version": "1.0.0",
-  "description": "Playwright AutoAgent – AI Automation Framework",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "test": "npx playwright test",
     "test:login": "npx playwright test tests/login.test.ts",
     "test:api": "npx playwright test tests/api.test.ts",
     "test:all": "npx playwright test",
-
     "test:headed": "RUN_HEADLESS=false npx playwright test",
     "test:headless": "RUN_HEADLESS=true npx playwright test",
     "test:debug": "npx playwright test --debug",
     "test:ui": "npx playwright test --ui",
-
     "test:chromium": "npx playwright test --project=chromium",
     "test:firefox": "npx playwright test --project=firefox",
     "test:webkit": "npx playwright test --project=webkit",
-
     "test:parallel": "RUN_PARALLEL=true RUN_WORKERS=4 npx playwright test",
     "test:single": "RUN_PARALLEL=false RUN_WORKERS=1 npx playwright test",
-
     "test:env:staging": "TEST_ENVIRONMENT=staging npx playwright test",
     "test:env:prod": "TEST_ENVIRONMENT=production npx playwright test",
     "test:env:dev": "TEST_ENVIRONMENT=dev npx playwright test",
-
     "test:ci": "CI=true npx playwright test",
     "test:report": "npx playwright show-report",
-
     "run:headless": "RUN_HEADLESS=true npx playwright test && open reports/$(ls -t reports/ | head -1)",
     "run:headed": "RUN_HEADLESS=false npx playwright test && open reports/$(ls -t reports/ | head -1)",
-
     "encrypt-password": "npx ts-node utils/security/crypto-helper.ts",
-
     "lint": "npx tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@types/node": "^25.3.2",
+    "@types/node": "^25.3.5",
     "@types/node-cron": "^3.0.11",
     "@types/pg": "^8.18.0",
     "@types/winston": "^2.4.4",
@@ -60,6 +51,7 @@
     "pg": "^8.19.0",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "yaml": "^2.8.2"
   }
 }

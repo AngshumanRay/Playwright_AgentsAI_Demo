@@ -73,7 +73,8 @@ Here's everything this framework can do, at a glance:
 │     ✅ Page Objects          — organized code for each page of your app  │
 │     ✅ HTML Execution Report — charts, screenshots, a11y, step logs      │
 │     ✅ Screenshots           — automatic photos of the browser on failure │
-│     ✅ Logger                — color-coded terminal messages + log files  │
+│     ✅ Logger                — color-coded terminal + log files w/ PASS/FAIL│
+│     ✅ YAML Data-Driven     — tests read inputs from external YAML files │
 │     ✅ Cookie/Popup handling — auto-dismisses banners and JS popups      │
 │     ✅ Accessibility (a11y)  — WCAG scan run automatically after each UI test│
 │                                                                          │
@@ -1626,9 +1627,14 @@ The framework will show your tool in the Utility Status Dashboard:
 | **`utils/excel/data-pool.ts`** | Manages data rows for parallel test execution (no conflicts) |
 | **`utils/security/crypto-helper.ts`** | AES-256 encrypt/decrypt passwords and stored secrets |
 | **`utils/helpers/logger.ts`** | Color-coded terminal logging |
-| **`utils/helpers/enhanced-logger.ts`** | Structured data collector for the HTML report (logs, perf, a11y) |
+| **`utils/helpers/enhanced-logger.ts`** | Structured data collector for the HTML report (logs, perf, a11y) + PASS/FAIL log summary |
+| **`utils/helpers/test-data-loader.ts`** | Reads test input data from YAML files in `test-data/` (data-driven) |
 | **`utils/helpers/screenshot.ts`** | Captures browser screenshots |
 | **`utils/index.ts`** | Barrel file — import anything from one place |
+| **`test-data/login-tests.yaml`** | Login test data: credentials, expected URLs, error messages |
+| **`test-data/api-tests.yaml`** | API test data: endpoints, payloads, expected status codes |
+| **`test-data/navigation-tests.yaml`** | Navigation test data: expected titles, headings, URLs |
+| **`logs/test-run-*.log`** | Per-run log files with PASS/FAIL summary prepended at the top |
 | **`playwright.config.ts`** | Playwright settings (browsers, timeouts, retries) |
 | **`.env` timeouts** | `TEST_TIMEOUT`, `EXPECT_TIMEOUT`, `ACTION_TIMEOUT`, `NAVIGATION_TIMEOUT` |
 | **`.env` viewport** | `VIEWPORT_WIDTH`, `VIEWPORT_HEIGHT` |
@@ -1652,8 +1658,10 @@ Every utility is controlled by your `.env` file. Here's the master switch for ea
 | **API Helper base URL** | Set `API_BASE_URL` (optional — defaults to `BASE_URL`) | Leave empty |
 | **Encryption** | Set `ENCRYPTION_KEY` (min 16 chars) | Leave empty — passwords stay as plain text |
 | **Excel** | Import `readExcelSheet` in your test — no `.env` needed | Just don't use it |
+| **YAML Data-Driven** | Import `getTestData` in your test + add YAML files to `test-data/` | Just don't use it |
 | **Screenshots** | Always on automatically | Can't disable |
 | **Logger** | Always on automatically | Can't disable |
+| **Log File PASS/FAIL** | Always on — summary prepended to log file after every run | Can't disable |
 | **Accessibility scan** | Always on automatically after every UI test | Can't disable |
 | **Cookie handling** | Always on automatically | Can't disable |
 
@@ -1665,7 +1673,7 @@ Every utility is controlled by your `.env` file. Here's the master switch for ea
 
 ---
 
-*Last updated: 4 March 2026*
+*Last updated: 6 March 2026*
 *Framework: Playwright AutoAgent – AI Automation Framework*
 *Tests: 3 Login (UI) + 3 API (REST) + 5 Navigation (UI) = 11 total*
 *Next: Read [WALKTHROUGH.md](WALKTHROUGH.md) to see the end-to-end XRAY flow, or [WRITE_A_TEST.md](WRITE_A_TEST.md) to write your first test.*

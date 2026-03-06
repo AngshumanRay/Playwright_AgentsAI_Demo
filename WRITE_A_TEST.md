@@ -539,6 +539,29 @@ test.describe('Your Feature Name', () => {                          // ← CHANG
 });
 ```
 
+> 💡 **Pro Tip — Data-Driven Tests:**
+> Instead of hardcoding values like `'value'` and `'https://your-website.com'`, you can
+> load test data from an external YAML file. This means QA can change test inputs
+> without editing TypeScript code:
+>
+> ```typescript
+> import { getTestData } from '../utils/helpers/test-data-loader';
+>
+> // In your test:
+> const td = getTestData('login-tests.yaml', 'PROJ-101');
+> await page.getByLabel('Username').fill(td.data.username as string);
+> await page.getByLabel('Password').fill(td.data.password as string);
+> ```
+>
+> Add your data to `test-data/your-feature.yaml`:
+> ```yaml
+> PROJ-101:
+>   testCase: "TC01: Your test name"
+>   data:
+>     username: "your-value"
+>     password: "your-password"
+> ```
+
 ---
 
 ## ❓ Quick-Lookup Table

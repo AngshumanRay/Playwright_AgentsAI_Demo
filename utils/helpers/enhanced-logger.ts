@@ -55,6 +55,21 @@ import * as fs   from 'fs';
 import * as path from 'path';
 
 // =============================================================================
+// TYPES (exported so other modules can type-check without importing the class)
+// =============================================================================
+
+/**
+ * Represents a single test result for log summary purposes.
+ */
+export interface TestResultSummaryEntry {
+  testCaseKey: string;
+  testName:    string;
+  status:      'PASS' | 'FAIL' | 'ABORTED';
+  durationMs?: number;
+  errorMessage?: string;
+}
+
+// =============================================================================
 // TYPE DEFINITIONS
 // =============================================================================
 
@@ -304,6 +319,134 @@ class EnhancedLogger {
     this.perfData   = [];
     this.a11yData   = new Map();
     this.testTimings = new Map();
+  }
+
+  /** Returns the current log file path (or empty string if not writing to file) */
+  getLogFilePath(): string {
+    return this.logFilePath;
+  }
+
+  // ===========================================================================
+  // PUBLIC: writeTestSummaryToLogFile()
+  // ===========================================================================
+  /**
+   * Writes a PASS/FAIL summary block at the TOP of the current log file.
+   * This is called once from global-teardown after all tests finish.
+   *
+   * The summary is PREPENDED so anyone opening the log file immediately sees
+   * which tests passed and which failed — without scrolling to the bottom.
+   *
+   * EXAMPLE OUTPUT (at the top of the log file):
+   *
+   *   ═══════════════════════════════════════════════════════════════════
+   *   ██  TEST EXECUTION SUMMARY  ██
+   *   ═══════════════════════════════════════════════════════════════════
+   *   Run Date:    2026-03-05
+   *   Total Tests: 11
+   *   ✅ Passed:   11
+   *   ❌ Failed:   0
+   *   🔶 Aborted:  0
+   *   Overall:     ✅ ALL TESTS PASSED
+   *   ───────────────────────────────────────────────────────────────────
+   *   ✅ PASS  │ PROJ-101 │ TC01: Valid credentials should log the user in
+   *   ✅ PASS  │ PROJ-102 │ TC02: Wrong password should show an error message
+   *   ...
+   *   ═══════════════════════════════════════════════════════════════════
+   *
+   * @param results  Array of test results with PASS/FAIL status
+   */
+  writeTestSummaryToLogFile(results: TestResultSummaryEntry[]): void {
+    if (!this.logFilePath) return;
+
+    // Close the write stream first so we can read + rewrite
+    if (this.logFileStream) {
+      this.logFileStream.end();
+      this.logFileStream = null;
+    }
+
+    try {
+      // Read the existing log content
+      let existingContent = '';
+      if (fs.existsSync(this.logFilePath)) {
+        existingContent = fs.readFileSync(this.logFilePath, 'utf-8');
+      }
+
+      // Build the summary block
+      const summary = this.buildSummaryBlock(results);
+
+      // Write summary + original content back to the file
+      fs.writeFileSync(this.logFilePath, summary + existingContent, 'utf-8');
+
+    } catch (err) {
+      // Non-fatal — log to console if we can't write the summary
+      console.error(`Failed to write test summary to log file: ${(err as Error).message}`);
+    }
+  }
+
+  // ===========================================================================
+  // PRIVATE: buildSummaryBlock()
+  // ===========================================================================
+  private buildSummaryBlock(results: TestResultSummaryEntry[]): string {
+    const passed  = results.filter(r => r.status === 'PASS');
+    const failed  = results.filter(r => r.status === 'FAIL');
+    const aborted = results.filter(r => r.status === 'ABORTED');
+    const total   = results.length;
+
+    const date = new Date().toISOString().split('T')[0];
+    const time = new Date().toISOString().replace('T', ' ').split('.')[0];
+
+    let overallStatus: string;
+    if (failed.length === 0 && aborted.length === 0) {
+      overallStatus = '✅ ALL TESTS PASSED';
+    } else if (failed.length > 0) {
+      overallStatus = `❌ ${failed.length} TEST(S) FAILED`;
+    } else {
+      overallStatus = `🔶 ${aborted.length} TEST(S) ABORTED`;
+    }
+
+    const bar = '═'.repeat(70);
+    const line = '─'.repeat(70);
+    const lines: string[] = [];
+
+    lines.push(bar);
+    lines.push('██  TEST EXECUTION SUMMARY  ██');
+    lines.push(bar);
+    lines.push(`Run Date:      ${date}`);
+    lines.push(`Run Time:      ${time}`);
+    lines.push(`Total Tests:   ${total}`);
+    lines.push(`✅ Passed:     ${passed.length}`);
+    lines.push(`❌ Failed:     ${failed.length}`);
+    lines.push(`🔶 Aborted:    ${aborted.length}`);
+    lines.push(`Overall:       ${overallStatus}`);
+    lines.push(line);
+
+    // Individual test results
+    for (const r of results) {
+      const icon   = r.status === 'PASS' ? '✅ PASS  ' : r.status === 'FAIL' ? '❌ FAIL  ' : '🔶 ABORT ';
+      const dur    = r.durationMs ? ` (${(r.durationMs / 1000).toFixed(1)}s)` : '';
+      const name   = r.testName || r.testCaseKey;
+      lines.push(`${icon}│ ${r.testCaseKey.padEnd(10)} │ ${name}${dur}`);
+    }
+
+    // If there are failures, add a failure detail section
+    if (failed.length > 0) {
+      lines.push(line);
+      lines.push('FAILURE DETAILS:');
+      for (const r of failed) {
+        lines.push(`  ❌ ${r.testCaseKey} — ${r.testName || r.testCaseKey}`);
+        if (r.errorMessage) {
+          // Truncate long error messages for the summary
+          const errShort = r.errorMessage.split('\n')[0].substring(0, 200);
+          lines.push(`     Error: ${errShort}`);
+        }
+      }
+    }
+
+    lines.push(bar);
+    lines.push('');  // blank line before the detailed logs
+    lines.push('');
+
+    return lines.join('\n');
   }
 
   // ===========================================================================

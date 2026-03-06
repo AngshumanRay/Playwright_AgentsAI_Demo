@@ -61,7 +61,7 @@ A one-command test framework that does three things automatically:
 |-------|-------------|
 | **Before tests** | Connects to JIRA → fetches test cases from XRAY → creates a Test Execution → seeds database (if configured) |
 | **During tests** | Opens Chrome for UI tests, calls REST APIs for API tests, checks assertions, captures failure screenshots |
-| **After tests** | Uploads PASS/FAIL to JIRA XRAY → attaches screenshots → generates HTML report → cleans up test data |
+| **After tests** | Uploads PASS/FAIL to JIRA XRAY → attaches screenshots → generates HTML report → writes PASS/FAIL summary to log file → cleans up test data |
 
 > **UI tests** (browser automation), **API tests** (direct backend calls), and **Navigation tests** (cross-site browsing) are all supported.
 > All types report to JIRA XRAY and appear in the HTML report.
@@ -111,8 +111,14 @@ project-root/
 │   ├── helpers/                  ← Shared helpers (used by all utilities)
 │   │   ├── logger.ts             ←   Formatted, color-coded log messages
 │   │   ├── enhanced-logger.ts    ←   Structured data collector for the HTML report
+│   │   ├── test-data-loader.ts   ←   Reads test data from YAML files (data-driven)
 │   │   └── screenshot.ts         ←   Capture browser screenshots
 │   └── index.ts                  ← Barrel file (import anything from '../utils')
+│
+├── test-data/                    ← YAML TEST DATA (data-driven — tests read inputs from here)
+│   ├── login-tests.yaml          ←   Login test data: credentials, expected URLs, error messages
+│   ├── api-tests.yaml            ←   API test data: endpoints, payloads, expected status codes
+│   └── navigation-tests.yaml    ←   Navigation test data: expected titles, headings, URLs
 │
 ├── config/
 │   └── environment.ts            ← Reads .env file, exports clean config object
@@ -132,6 +138,8 @@ project-root/
 │
 ├── reports/                      ← HTML execution reports (auto-generated)
 │   └── execution-report-*.html   ←   Visual report with charts, steps, and a11y results
+├── logs/                         ← LOG FILES (auto-generated, one per day)
+│   └── test-run-*.log            ←   PASS/FAIL summary at top + detailed step-by-step logs
 └── docs/
     └── RUN_REPORT_*.md           ← 📋 Reports generated for each test run
 ```
@@ -468,6 +476,29 @@ test.describe('User API Tests', () => {
 ### Step 3: Run your new test:
 ```bash
 npx playwright test tests/your-feature.test.ts
+```
+
+### 💡 Data-Driven Tip: Load Test Data from YAML
+
+Instead of hardcoding test values (credentials, URLs, expected results), load them from external YAML files in `test-data/`. This makes tests reusable — change data without modifying code:
+
+```typescript
+import { getTestData } from '../utils/helpers/test-data-loader';
+
+// In your test:
+const td = getTestData('login-tests.yaml', 'PROJ-101');
+await page.getByLabel('Username').fill(td.data.username as string);
+await page.getByLabel('Password').fill(td.data.password as string);
+```
+
+YAML file structure (`test-data/login-tests.yaml`):
+```yaml
+PROJ-101:
+  testCase: "TC01: Valid login"
+  data:
+    username: "tomsmith"
+    password: "SuperSecretPassword!"
+    expectedUrlFragment: "/secure"
 ```
 
 ---
