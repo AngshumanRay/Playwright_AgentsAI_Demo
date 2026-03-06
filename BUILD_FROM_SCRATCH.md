@@ -9356,7 +9356,7 @@ echo "╠═══════════════════════�
 echo "║                                                              ║"
 echo "║  📂 Project location: $PROJECT_DIR                          ║"
 echo "║                                                              ║"
-echo "║  🚀 To run all 11 tests:                                    ║"
+echo "║  🚀 To run tests:                                             ║"
 echo "║     cd $PROJECT_DIR && npm test                              ║"
 echo "║                                                              ║"
 echo "║  📊 To view the HTML report after tests:                    ║"
@@ -9433,7 +9433,11 @@ After running the script, you'll have this project structure:
 └── logs/                         ← Log files (auto-generated)
 ```
 
-**Total: 29 source files, 11 test cases, ~9,000 lines of code.**
+**Total: 29 source files, 11 test cases (base), ~9,000 lines of code.**
+
+> 💡 The full framework on GitHub also includes: `test-data/` (YAML data-driven files),
+> `test-fixtures/` (self-hosted HTML), `pages/SalesforceIframePage.ts`, and
+> `tests/salesforce-iframe.test.ts` — bringing the total to 33 files and 13 test cases.
 
 ---
 
@@ -9441,7 +9445,7 @@ After running the script, you'll have this project structure:
 
 | Command | What It Does |
 |---------|--------------|
-| `npm test` | Run all 11 tests |
+| `npm test` | Run all tests |
 | `npm run test:login` | Run only login tests (TC01–TC03) |
 | `npm run test:api` | Run only API tests (TC04–TC06) |
 | `npm run run:headed` | Run tests with visible browser |
@@ -9477,6 +9481,7 @@ TEST_TIMEOUT=60000                     # Increase for slow apps
 
 ---
 
-*Generated: 5 March 2026*
+*Generated: 5 March 2026 | Last updated: 6 March 2026*
 *Framework: Playwright AutoAgent – AI Automation Framework*
-*Source files: 29 | Test cases: 11 | Total lines: ~9,000*
+*Source files: 33 | Test cases: 13 (3 Login + 3 API + 5 Navigation + 2 Iframe) | Total lines: ~10,000*
+*Note: This script creates the base 11 tests (TC01–TC11). For iframe tests (TC12–TC13), YAML data-driven setup, and test-data-loader, see the full repo on GitHub or the latest .md docs.*

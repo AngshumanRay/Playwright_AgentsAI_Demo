@@ -1,6 +1,6 @@
 # 🧭 How the 5 Navigation Tests Were Built — Step by Step
 
-### A Complete Guide From Blank Screen to 11 Passing Tests
+### A Complete Guide From Blank Screen to 13 Passing Tests
 
 ---
 
@@ -439,7 +439,7 @@ test(
 # Run only the new navigation tests (to verify they work)
 npx playwright test tests/playwright-dev.test.ts
 
-# Run ALL 11 tests (login + API + navigation)
+# Run ALL 13 tests (login + API + navigation + iframe)
 npm test
 
 # Run with visible browser to WATCH what's happening
@@ -455,13 +455,13 @@ npm run run:headed
 ✅ PASS  [PROJ-110] TC10: Click Community tab and verify Welcome page title
 ✅ PASS  [PROJ-111] TC11: Switch to Python language and verify Python page title
 
-  11 passed (~50s)
+  13 passed (~50s)
 ```
 
-### The HTML report automatically includes all 11 tests:
+### The HTML report automatically includes all 13 tests:
 
 Open `reports/execution-report-YYYY-MM-DD.html` in your browser to see:
-- Summary cards now showing 11 tests
+- Summary cards now showing 13 tests
 - Navigation tests grouped under "🌐 Playwright.dev Navigation Tests"
 - Performance metrics for each page navigation
 - Accessibility scan results for each page

@@ -7,6 +7,8 @@
     "test": "npx playwright test",
     "test:login": "npx playwright test tests/login.test.ts",
     "test:api": "npx playwright test tests/api.test.ts",
+    "test:nav": "npx playwright test tests/playwright-dev.test.ts",
+    "test:iframe": "npx playwright test tests/salesforce-iframe.test.ts",
     "test:all": "npx playwright test",
     "test:headed": "RUN_HEADLESS=false npx playwright test",
     "test:headless": "RUN_HEADLESS=true npx playwright test",

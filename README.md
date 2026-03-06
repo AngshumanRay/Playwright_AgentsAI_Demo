@@ -242,14 +242,20 @@ BASE_URL=https://your-app.com
 All commands are run from the project root directory in your terminal:
 
 ```bash
-# Run ALL tests (UI + API, with JIRA XRAY integration)
+# Run ALL tests (UI + API + Navigation + Iframe, with JIRA XRAY integration)
 npm test
 
-# Run ONLY the UI login tests
+# Run ONLY the UI login tests (TC01–TC03)
 npm run test:login
 
-# Run ONLY the API tests
+# Run ONLY the API tests (TC04–TC06)
 npm run test:api
+
+# Run ONLY the navigation tests (TC07–TC11)
+npm run test:nav
+
+# Run ONLY the iframe tests (TC12–TC13)
+npm run test:iframe
 
 # Run ALL tests with a VISIBLE browser window (good for debugging UI tests)
 npm run run:headed
@@ -368,10 +374,11 @@ global-setup.ts
     └─ Saves execution key "PROJ-789" to xray-state.json
     │
     ▼
-TESTS RUN (login.test.ts, api.test.ts)
+TESTS RUN (login.test.ts, api.test.ts, playwright-dev.test.ts, salesforce-iframe.test.ts)
     ├─ Each test has: annotation: { type: 'xray', description: 'PROJ-101' }
-    ├─ UI tests use LoginPage (POM) to interact with the browser
+    ├─ UI tests use Page Objects (LoginPage, PlaywrightDevPage, SalesforceIframePage)
     ├─ API tests call REST endpoints via api-helper.ts
+    ├─ Iframe tests use BasePage iframe helpers (getIframe, fillInIframe, etc.)
     ├─ After each test: result (PASS/FAIL + screenshot) saved to xray-state.json
     │
     ▼
@@ -380,20 +387,27 @@ global-teardown.ts
     ├─ For each test result: calls XRAY API to update status (xray-result-updater.ts)
     ├─ Attaches failure screenshots to JIRA test runs
     ├─ Generates the HTML execution report (report-generator.ts)
-    └─ Logs final summary (Passed: 5, Failed: 1)
+    └─ Logs final summary (Passed: 12, Failed: 1)
     │
     ▼
 JIRA XRAY shows:
     PROJ-789 (Test Execution)
-        ├─ PROJ-101: ✅ PASS  (UI)
-        ├─ PROJ-102: ❌ FAIL  (UI, screenshot attached)
-        ├─ PROJ-103: ✅ PASS  (UI)
+        ├─ PROJ-101: ✅ PASS  (UI — Login)
+        ├─ PROJ-102: ❌ FAIL  (UI — Login, screenshot attached)
+        ├─ PROJ-103: ✅ PASS  (UI — Login)
         ├─ PROJ-104: ✅ PASS  (API)
         ├─ PROJ-105: ✅ PASS  (API)
-        └─ PROJ-106: ✅ PASS  (API)
+        ├─ PROJ-106: ✅ PASS  (API)
+        ├─ PROJ-107: ✅ PASS  (UI — Navigation)
+        ├─ PROJ-108: ✅ PASS  (UI — Navigation)
+        ├─ PROJ-109: ✅ PASS  (UI — Navigation)
+        ├─ PROJ-110: ✅ PASS  (UI — Navigation)
+        ├─ PROJ-111: ✅ PASS  (UI — Navigation)
+        ├─ PROJ-112: ✅ PASS  (UI — Iframe)
+        └─ PROJ-113: ✅ PASS  (UI — Iframe)
 
-HTML REPORT (reports/execution-report-2026-03-03.html):
-    ├─ Summary: 6 tests | 5 passed | 1 failed | 3 UI | 3 API
+HTML REPORT (reports/execution-report-2026-03-06.html):
+    ├─ Summary: 13 tests | 12 passed | 1 failed | 10 UI | 3 API
     ├─ Charts: pass rate, test types, duration, a11y issues
     └─ Per-test: status badge, type badge, start time, step log, screenshot
 ```

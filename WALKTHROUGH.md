@@ -694,8 +694,7 @@ Status: DONE
 After the XRAY upload, the HTML execution report is automatically generated:
 ```
 reports/execution-report-2026-03-03.html
-├─ Summary: 6 tests | 5 passed | 1 failed | 3 🖥️ UI | 3 🔌 API | pass rate 83%
-├─ 3D Relationship Graph: interactive force-directed graph linking tests → pages → APIs → assertions
+├─ Summary: 13 tests | 12 passed | 1 failed | 10 🖥️ UI | 3 🔌 API | pass rate 92%
 ├─ Charts: pass/fail donut, type breakdown, duration bar, a11y issues
 ├─ Observability: network requests, transfer size, page load, FCP/LCP
 ├─ Results table with per-test badges, start time, duration, screenshot
@@ -951,6 +950,6 @@ When tests run, the terminal shows messages like this. Here's what each means:
 
 ---
 
-*Last updated: 4 March 2026*
+*Last updated: 6 March 2026*
 *Framework: Playwright AutoAgent – AI Automation Framework v1.4.0 — 13 tests (3 Login + 3 API + 5 Navigation + 2 Iframe), full HTML report, comprehensive XRAY integration*
 *Next: Read [CAPABILITIES.md](CAPABILITIES.md) to explore every feature, or [WRITE_A_TEST.md](WRITE_A_TEST.md) to write your first test.*
