@@ -225,6 +225,11 @@ XRAY_SPRINT_NUMBER=5
 # ──── APP UNDER TEST ────
 # The URL of the application you're testing
 BASE_URL=https://your-app.com
+
+# ──── ENCRYPTION (for encrypted passwords in YAML) ────
+# Set a strong passphrase (min 16 characters). This enables ${ENC:...}
+# auto-decryption in YAML test data files. Run: npm run encrypt-password
+ENCRYPTION_KEY=your-strong-passphrase-min-16-chars
 ```
 
 ### How to get a JIRA API Token:
@@ -274,6 +279,9 @@ npm run test:report
 
 # Check TypeScript for errors without running tests
 npm run lint
+
+# Encrypt a password for use in YAML files or .env
+npm run encrypt-password
 ```
 
 > **New to tests?** Just run `npm test` — it runs everything and generates the HTML report in `reports/`.
@@ -294,10 +302,10 @@ After running tests, you'll see output like this in the terminal:
   🔹 Database:   ⚪ Not configured (will skip)
   🔹 Email:      ⚪ Not configured (will skip)
   🔹 API Helper: ⚪ Using BASE_URL as fallback
-  🔹 Encryption: ⚠️  Not set (passwords stored as plain text)
+  🔹 Encryption: ✅ Configured (YAML passwords auto-decrypted via ${ENC:...})
 
 ✅ [JIRA Auth] Connected successfully as: John Doe (john@company.com)
-✅ Loaded 6 test case(s) from "Sprint 5 Test Set"
+✅ Loaded 13 test case(s) from "Sprint 5 Test Set"
 ✅ Test Execution created: PROJ-789
 ✅ State saved.
 
@@ -753,6 +761,12 @@ npm run test:debug
 | **a11y** | Short for "accessibility" — checks that the page is usable for everyone |
 | **Barrel file** | A single file that re-exports everything — simplifies imports |
 | **HTML Report** | A visual web page showing test results, charts, and screenshots after a run |
+| **Encryption** | Scrambling text so it's unreadable without a secret key (AES-256) |
+| **`${ENC:...}`** | Syntax used in YAML files to store encrypted passwords — auto-decrypted at runtime |
+| **`${ENV:...}`** | Syntax used in YAML files to reference environment variables from `.env` |
+| **ENCRYPTION_KEY** | The secret passphrase in `.env` used to encrypt/decrypt passwords (min 16 chars) |
+| **YAML** | A human-readable file format used to store test data (`.yaml` files in `test-data/`) |
+| **Data-Driven Testing** | Running the same test code with different input data from external files (YAML/Excel) |
 
 ---
 

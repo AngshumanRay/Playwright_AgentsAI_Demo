@@ -23,7 +23,7 @@
 | 7 | Step 5 — Write TC09 (API Tab) | Third test |
 | 8 | Step 6 — Write TC10 (Community Tab) | Fourth test |
 | 9 | Step 7 — Write TC11 (Python Language) | Fifth test, language switcher |
-| 10 | Step 8 — Run & Verify | Running all 11 tests |
+| 10 | Step 8 — Run & Verify | Running all 13 tests |
 | 11 | The Complete File Map | Every file involved |
 | 12 | Lessons Learned | Patterns you can reuse |
 

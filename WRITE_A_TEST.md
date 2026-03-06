@@ -207,7 +207,7 @@ WHAT A HUMAN DOES                          WHAT YOU TYPE IN THE TEST
 
     enhancedLogger.step('Step 2: Enter username and password', xrayTestKey);
     await page.getByLabel('Username').fill('tomsmith');
-    await page.getByLabel('Password').fill('SuperSecretPassword!');
+    await page.getByLabel('Password').fill('SuperSecretPassword!');  // or use data-driven: td.password
 
     enhancedLogger.step('Step 3: Click the Login button', xrayTestKey);
     await page.getByRole('button', { name: 'Login' }).click();
@@ -323,6 +323,9 @@ test.describe('Login Feature Tests', () => {
     await page.goto('https://the-internet.herokuapp.com/login');
 
     // Step 2: Type username and password, then click Login
+    // TIP: In real tests, use data-driven YAML instead of hardcoded values!
+    //   const td = getTestData('ui-tests.yaml', 'PROJ-101');
+    //   td.password is auto-decrypted from ${ENC:...} in YAML
     enhancedLogger.step('Step 2: Enter valid credentials and submit', xrayTestKey);
     await page.getByLabel('Username').fill('tomsmith');
     await page.getByLabel('Password').fill('SuperSecretPassword!');
@@ -850,6 +853,8 @@ await expect(page.locator('#page-title')).toHaveText('My Record');
   [Iframe Testing — A Beginner's Guide](#️-iframe-testing--a-beginners-guide) section above.
   It has a complete template, cheat sheet, and common mistakes to avoid.
 - **Want a step-by-step walkthrough?** Read **[HOWTO_5_NAVIGATION_TESTS.md](HOWTO_5_NAVIGATION_TESTS.md)** — it explains exactly how the 5 playwright.dev tests were built from scratch.
+- **Need to encrypt passwords in YAML?** Run `npm run encrypt-password`, paste the output as
+  `password: "${ENC:U2FsdGVkX1/...}"` in your YAML file. See [CAPABILITIES.md → Encryption](CAPABILITIES.md#-security--encryption) for the full guide.
 
 ---
 

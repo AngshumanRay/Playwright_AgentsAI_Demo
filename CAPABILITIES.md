@@ -77,6 +77,7 @@ Here's everything this framework can do, at a glance:
 │     ✅ Screenshots           — automatic photos of the browser on failure │
 │     ✅ Logger                — color-coded terminal + log files w/ PASS/FAIL│
 │     ✅ YAML Data-Driven     — tests read inputs from external YAML files │
+│     ✅ Encrypted YAML       — ${ENC:...} auto-decrypts passwords in YAML │
 │     ✅ Cookie/Popup handling — auto-dismisses banners and JS popups      │
 │     ✅ Accessibility (a11y)  — WCAG scan run automatically after each UI test│
 │                                                                          │
@@ -1644,9 +1645,13 @@ const plain = decryptObject(encrypted);
 │  ENCRYPT A PASSWORD:                                                     │
 │    2. Run:          npm run encrypt-password                             │
 │    3. Type your password when asked                                      │
-│    4. Copy the output → paste into .env                                  │
+│    4. Copy the output → paste into .env OR into YAML                     │
 │                                                                          │
-│  USE IN CODE:                                                            │
+│  USE IN YAML (recommended — easiest for QA):                             │
+│    password: "${ENC:U2FsdGVkX1/abc123...}"                               │
+│    The test-data-loader auto-decrypts it. Your test code stays the same. │
+│                                                                          │
+│  USE IN CODE (for .env values):                                          │
 │    const password = decrypt(process.env.MY_SECRET_ENCRYPTED!);           │
 │                                                                          │
 │  AVAILABLE FUNCTIONS:                                                    │
@@ -1866,10 +1871,10 @@ The framework will show your tool in the Utility Status Dashboard:
 | **`utils/security/crypto-helper.ts`** | AES-256 encrypt/decrypt passwords and stored secrets |
 | **`utils/helpers/logger.ts`** | Color-coded terminal logging |
 | **`utils/helpers/enhanced-logger.ts`** | Structured data collector for the HTML report (logs, perf, a11y) + PASS/FAIL log summary |
-| **`utils/helpers/test-data-loader.ts`** | Reads test input data from YAML files in `test-data/`; supports `run: yes/no` selective execution |
+| **`utils/helpers/test-data-loader.ts`** | Reads test input data from YAML files in `test-data/`; supports `run: yes/no` selective execution, `${ENV:...}` env var substitution, and `${ENC:...}` auto-decryption of encrypted passwords |
 | **`utils/helpers/screenshot.ts`** | Captures browser screenshots |
 | **`utils/index.ts`** | Barrel file — import anything from one place |
-| **`test-data/ui-tests.yaml`** | UI test data: Login + Navigation (credentials, URLs, expected results, `run: yes/no` toggle) |
+| **`test-data/ui-tests.yaml`** | UI test data: Login + Navigation + Iframe (credentials with `${ENC:...}` encryption, URLs, form data, `run: yes/no` toggle) |
 | **`test-data/api-tests.yaml`** | API test data: endpoints, payloads, expected status codes, `run: yes/no` toggle |
 | **`logs/test-run-*.log`** | Per-run log files with PASS/FAIL summary prepended at the top |
 | **`playwright.config.ts`** | Playwright settings (browsers, timeouts, retries) |
@@ -1894,7 +1899,7 @@ Every utility is controlled by your `.env` file. Here's the master switch for ea
 | **Database** | Set `DB_ENABLED=true` + fill connection details | Set `DB_ENABLED=false` |
 | **Email** | Set `EMAIL_ENABLED=true` + fill API key | Set `EMAIL_ENABLED=false` |
 | **API Helper base URL** | Set `API_BASE_URL` (optional — defaults to `BASE_URL`) | Leave empty |
-| **Encryption** | Set `ENCRYPTION_KEY` (min 16 chars) | Leave empty — passwords stay as plain text |
+| **Encryption** | Set `ENCRYPTION_KEY` (min 16 chars) — enables `${ENC:...}` auto-decryption in YAML | Leave empty — `${ENC:...}` values stay as-is (warning logged) |
 | **Excel** | Import `readExcelSheet` in your test — no `.env` needed | Just don't use it |
 | **YAML Data-Driven** | Import `getTestData` in your test + add YAML files to `test-data/` | Just don't use it |
 | **Screenshots** | Always on automatically | Can't disable |

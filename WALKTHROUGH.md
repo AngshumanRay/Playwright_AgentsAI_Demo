@@ -719,6 +719,7 @@ reports/execution-report-2026-03-03.html
 | `utils/helpers/logger.ts` | The "announcer" — prints formatted, coloured messages in the terminal |
 | `utils/helpers/test-data-loader.ts` | The "librarian" — reads test input data from YAML files so tests don't hardcode values; supports `run: yes/no` toggle, `${ENV:...}` env var substitution, and `${ENC:...}` auto-decryption of encrypted passwords |
 | `utils/helpers/screenshot.ts` | The "photographer" — captures a browser screenshot when a test fails |
+| `utils/security/crypto-helper.ts` | The "locksmith" — AES-256 encrypt/decrypt for passwords and secrets; includes an interactive CLI tool (`npm run encrypt-password`) to generate encrypted values for YAML or .env |
 | `test-data/*.yaml` | The "answer sheets" — 2 YAML files (`ui-tests.yaml` + `api-tests.yaml`) with test inputs, expected results, `run: yes/no` toggle, and `${ENC:...}` encrypted passwords |
 | `logs/test-run-*.log` | The "diary" — log file for each run, with a PASS/FAIL summary at the very top |
 | `tests/global-setup.ts` | The "pre-flight checklist" — runs once before any test (auth, fetch, create execution) |
@@ -730,6 +731,7 @@ reports/execution-report-2026-03-03.html
 | `tests/salesforce-iframe.test.ts` | The iframe tests — 2 Salesforce-style multi-iframe tests |
 | `pages/BasePage.ts` | The \"toolbox\" — common browser actions (click, type, navigate, **10 iframe helpers**) every page can use |
 | `pages/LoginPage.ts` | The \"login page expert\" — knows exactly where the username, password, and Login button are |
+| `pages/PlaywrightDevPage.ts` | The \"navigator\" — knows how to click the Docs/API/Community tabs and switch language on playwright.dev |
 | `pages/SalesforceIframePage.ts` | The \"iframe expert\" — demonstrates filling forms inside iframes (Salesforce/ServiceNow pattern) |
 | `playwright.config.ts` | The "control room" — tells Playwright which browser to use, how many tests to run in parallel, etc. |
 
@@ -914,6 +916,18 @@ When tests run, the terminal shows messages like this. Here's what each means:
 > - Full XRAY integration status and links (or demo-mode explanation if JIRA not configured)
 >
 > See **[CAPABILITIES.md → HTML Execution Report](CAPABILITIES.md#-html-execution-report)** for full details on every report section.
+
+---
+
+**Q: How do I encrypt passwords in YAML test data files?**
+> 1. Make sure `ENCRYPTION_KEY` is set in `.env` (at least 16 characters)
+> 2. Run: `npm run encrypt-password`
+> 3. Type the password you want to encrypt
+> 4. The tool prints the encrypted value — copy it
+> 5. Paste into your YAML file as: `password: "${ENC:U2FsdGVkX1/...}"`
+> 6. The test-data-loader auto-decrypts it at runtime — your test code stays the same!
+>
+> See [CAPABILITIES.md → Encryption](CAPABILITIES.md#-security--encryption) for the full guide.
 
 ---
 
