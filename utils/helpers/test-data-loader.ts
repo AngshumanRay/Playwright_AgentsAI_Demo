@@ -40,6 +40,13 @@
 //     password: "${ENV:TEST_PASSWORD}"
 //   The loader replaces these at runtime with the actual env value.
 //
+// ENCRYPTED VALUE SUBSTITUTION:
+//   Use ${ENC:ciphertext} in YAML values to store encrypted secrets:
+//     password: "${ENC:U2FsdGVkX1/abc123...}"
+//   The loader auto-decrypts these at runtime using ENCRYPTION_KEY from .env.
+//   Generate encrypted values with:  npm run encrypt-password
+//   This way passwords are NEVER stored as plain text in YAML files.
+//
 // USAGE IN TESTS:
 //   import { getTestData, isTestEnabled } from '../utils/helpers/test-data-loader';
 //
@@ -62,6 +69,7 @@ import * as fs   from 'fs';
 import * as path from 'path';
 import { parse }  from 'yaml';
 import { logger } from './logger';
+import { decrypt, isEncryptionConfigured } from '../security/crypto-helper';
 
 // =============================================================================
 // TYPES
@@ -257,21 +265,29 @@ function resolveTestDataPath(fileName: string): string {
 
 /**
  * Recursively walks through the parsed YAML object and replaces any
- * ${ENV:VARIABLE_NAME} patterns with the actual environment variable value.
+ * ${ENV:VARIABLE_NAME} patterns with the actual environment variable value,
+ * and ${ENC:ciphertext} patterns with their decrypted plain-text value.
  *
- * EXAMPLE:
+ * EXAMPLE (environment variable):
  *   Input:  { password: "${ENV:TEST_PASSWORD}" }
  *   Output: { password: "actual-password-from-env" }
  *
+ * EXAMPLE (encrypted value):
+ *   Input:  { password: "${ENC:U2FsdGVkX1/abc123...}" }
+ *   Output: { password: "MyActualPassword" }
+ *
  * If the env variable is not set, the placeholder remains as-is and a
- * warning is logged.
+ * warning is logged. If ENCRYPTION_KEY is not configured, encrypted
+ * placeholders remain as-is with a warning.
  */
 function resolveEnvVariables(obj: TestDataFile): TestDataFile {
   const envPattern = /\$\{ENV:([^}]+)\}/g;
+  const encPattern = /\$\{ENC:([^}]+)\}/g;
 
   function resolveValue(value: unknown): unknown {
     if (typeof value === 'string') {
-      return value.replace(envPattern, (_match, varName: string) => {
+      // 1) Replace ${ENV:VARIABLE_NAME} with env var values
+      let resolved = value.replace(envPattern, (_match, varName: string) => {
         const envValue = process.env[varName];
         if (envValue === undefined) {
           logger.warn(`⚠ Environment variable "${varName}" is not set (used in test data YAML).`);
@@ -279,6 +295,30 @@ function resolveEnvVariables(obj: TestDataFile): TestDataFile {
         }
         return envValue;
       });
+
+      // 2) Replace ${ENC:ciphertext} with decrypted values
+      resolved = resolved.replace(encPattern, (_match, cipherText: string) => {
+        if (!isEncryptionConfigured()) {
+          logger.warn(
+            '⚠ ENCRYPTION_KEY is not set in .env — cannot decrypt $' + '{ENC:...} values in YAML.\n' +
+            '   Set ENCRYPTION_KEY in .env (min 16 characters) and re-run.'
+          );
+          return `\${ENC:${cipherText}}`; // leave placeholder as-is
+        }
+        try {
+          const plainText = decrypt(cipherText);
+          logger.debug('🔓 Decrypted an $' + '{ENC:...} value in YAML test data.');
+          return plainText;
+        } catch (err) {
+          logger.error(
+            '❌ Failed to decrypt $' + '{ENC:...} value in YAML: ' + (err as Error).message + '\n' +
+            '   Make sure ENCRYPTION_KEY matches the key used to encrypt this value.'
+          );
+          return `\${ENC:${cipherText}}`; // leave placeholder as-is on failure
+        }
+      });
+
+      return resolved;
     }
 
     if (Array.isArray(value)) {

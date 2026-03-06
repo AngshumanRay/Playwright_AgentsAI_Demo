@@ -271,10 +271,11 @@ export async function encryptPasswordInteractive(): Promise<void> {
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
     console.log('║  ✅ Encryption successful!                                   ║');
     console.log('╚══════════════════════════════════════════════════════════════╝\n');
-    console.log('Add this to your .env file:\n');
+    console.log('📌 USE IN .env FILE:\n');
     console.log(`   DB_PASSWORD_ENCRYPTED=${encrypted}`);
-    console.log('\nOR for other values:');
-    console.log(`   MY_SECRET_ENCRYPTED=${encrypted}`);
+    console.log('\n📌 USE IN YAML TEST DATA (recommended):');
+    console.log(`   password: "\${ENC:${encrypted}}"`);
+    console.log('\n   The test-data-loader auto-decrypts ${ENC:...} values at runtime.');
     console.log('\n⚠️  IMPORTANT:');
     console.log('   - Keep your ENCRYPTION_KEY private (never commit to Git)');
     console.log('   - The encrypted value above is useless without the key');

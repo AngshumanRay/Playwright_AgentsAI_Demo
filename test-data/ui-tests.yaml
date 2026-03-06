@@ -11,6 +11,12 @@
 # ║     • Below that, add any data fields your test needs                    ║
 # ║     • The test picks up each field by its key name                       ║
 # ║                                                                          ║
+# ║   ENCRYPTION:                                                            ║
+# ║     • Wrap sensitive values with ${ENC:ciphertext}                       ║
+# ║     • The loader auto-decrypts using ENCRYPTION_KEY from .env            ║
+# ║     • Generate encrypted values:  npm run encrypt-password               ║
+# ║     • Example:  password: "${ENC:U2FsdGVkX1/abc123...}"                 ║
+# ║                                                                          ║
 # ║   TO ADD A NEW TEST:                                                     ║
 # ║     1. Add a new PROJ-XXX block below                                    ║
 # ║     2. Set run: yes                                                      ║
@@ -22,13 +28,16 @@
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  🔐 LOGIN TESTS (TC01 – TC03)
+#  Passwords are encrypted using ${ENC:ciphertext} syntax.
+#  The loader auto-decrypts them at runtime using ENCRYPTION_KEY from .env.
+#  Generate encrypted values with:  npm run encrypt-password
 # ─────────────────────────────────────────────────────────────────────────────
 
 PROJ-101:
   run: yes
   testCase: "TC01: Valid credentials should log the user in successfully"
   username: "tomsmith"
-  password: "SuperSecretPassword!"
+  password: "${ENC:U2FsdGVkX1+8pM4itdDObuWaI5BrUJdIigtiBsHo04X2b7HWHZkibsti7BKnUAjA}"
   expectedUrlFragment: "/secure"
   expectedOutcome: "pass"
 
@@ -36,7 +45,7 @@ PROJ-102:
   run: yes
   testCase: "TC02: Wrong password should show an error message"
   username: "tomsmith"
-  password: "WrongPassword"
+  password: "${ENC:U2FsdGVkX1/N1ioTWfy4RuzvZ5QXMDRo/FoLEbF/tGU=}"
   expectedErrorMessage: "Your password is invalid!"
   expectedUrlFragment: "/login"
   expectedOutcome: "error"

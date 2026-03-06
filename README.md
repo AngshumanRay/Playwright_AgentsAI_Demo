@@ -519,9 +519,13 @@ PROJ-101:
   run: yes                          # ← yes = run, no = skip
   testCase: "TC01: Valid login"
   username: "tomsmith"              # ← flat data fields (no nesting)
-  password: "SuperSecretPassword!"
+  password: "${ENC:U2FsdGVkX1+8pM...}"  # ← encrypted! (never plain text)
   expectedUrlFragment: "/secure"
 ```
+
+> 🔐 **Encrypt passwords in YAML** — Use `${ENC:ciphertext}` to store encrypted values.
+> Run `npm run encrypt-password` to generate the ciphertext. The loader auto-decrypts at runtime.
+> See the [Encryption section in CAPABILITIES.md](CAPABILITIES.md#-security--encryption) for details.
 
 ---
 

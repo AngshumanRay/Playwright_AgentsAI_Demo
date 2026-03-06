@@ -563,9 +563,16 @@ test.describe('Your Feature Name', () => {                          // ← CHANG
 >   run: yes                          # ← yes = run, no = skip
 >   testCase: "TC01: Your test name"
 >   username: "your-value"            # ← any data fields you need
->   password: "your-password"
+>   password: "${ENC:U2FsdGVkX1/abc...}"  # ← encrypted! (see below)
 >   expectedUrl: "/dashboard"
 > ```
+>
+> **🔐 Encrypting Sensitive Values:**
+> Never store passwords as plain text in YAML. Use `${ENC:ciphertext}` instead:
+> 1. Set `ENCRYPTION_KEY` in `.env` (min 16 characters)
+> 2. Run: `npm run encrypt-password`
+> 3. Paste the encrypted output into your YAML: `password: "${ENC:U2FsdGVkX1/...}"`
+> 4. The test-data-loader auto-decrypts at runtime — your test code stays the same!
 >
 > **Selective Execution:** Set `run: no` next to any test case in the YAML file
 > to skip it. Set `run: yes` to include it. This lets you quickly run just the

@@ -1401,12 +1401,14 @@ The tool shows you the encrypted version:
 ║  ✅ Encryption successful!                                   ║
 ╚══════════════════════════════════════════════════════════════╝
 
-Add this to your .env file:
+📌 USE IN .env FILE:
 
    DB_PASSWORD_ENCRYPTED=U2FsdGVkX19KxmE7qLz+3T8VjY9pR2wN...
 
-OR for other values:
-   MY_SECRET_ENCRYPTED=U2FsdGVkX19KxmE7qLz+3T8VjY9pR2wN...
+📌 USE IN YAML TEST DATA (recommended):
+   password: "${ENC:U2FsdGVkX19KxmE7qLz+3T8VjY9pR2wN...}"
+
+   The test-data-loader auto-decrypts ${ENC:...} values at runtime.
 
 ⚠️  IMPORTANT:
    - Keep your ENCRYPTION_KEY private (never commit to Git)
@@ -1481,6 +1483,61 @@ Here's the entire flow, from start to finish, with no steps skipped:
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+### 🔐 Encrypting Passwords in YAML Test Data Files
+
+Instead of storing passwords as plain text in your YAML test data files, you can
+use the `${ENC:ciphertext}` syntax. The test-data-loader **auto-decrypts** these
+values at runtime — your test code stays exactly the same.
+
+**Before (❌ plain text — anyone can read the password):**
+```yaml
+PROJ-101:
+  run: yes
+  testCase: "TC01: Valid login"
+  username: "tomsmith"
+  password: "SuperSecretPassword!"          # ← ❌ Plain text!
+```
+
+**After (✅ encrypted — safe to commit to Git):**
+```yaml
+PROJ-101:
+  run: yes
+  testCase: "TC01: Valid login"
+  username: "tomsmith"
+  password: "${ENC:U2FsdGVkX1+8pM4itdDO...}"  # ← ✅ Encrypted!
+```
+
+**Step-by-step:**
+1. Make sure `ENCRYPTION_KEY` is set in `.env` (min 16 characters)
+2. Run: `npm run encrypt-password`
+3. Type the password you want to encrypt
+4. The tool prints both **.env** and **YAML** formats:
+   ```
+   📌 USE IN YAML TEST DATA (recommended):
+      password: "${ENC:U2FsdGVkX1+8pM4itdDO...}"
+   ```
+5. Paste the `${ENC:...}` value into your YAML file
+6. Done! The test-data-loader decrypts it automatically when your test runs
+
+**Your test code does NOT change at all:**
+```typescript
+const td = getTestData('ui-tests.yaml', 'PROJ-101');
+await page.getByLabel('Password').fill(td.password as string);
+// ↑ The loader already decrypted the password — your test sees plain text
+```
+
+**Two substitution patterns supported in YAML:**
+| Pattern | Example | What it does |
+|---------|---------|-------------|
+| `${ENV:VAR_NAME}` | `password: "${ENV:TEST_PASSWORD}"` | Replaced with the value of env var `TEST_PASSWORD` |
+| `${ENC:ciphertext}` | `password: "${ENC:U2FsdGVkX1...}"` | Auto-decrypted using `ENCRYPTION_KEY` from `.env` |
+
+> 💡 **When to use which?**
+> - Use `${ENC:...}` when the encrypted value lives directly in the YAML file (recommended)
+> - Use `${ENV:...}` when the value lives in `.env` and you just reference it
 
 ---
 
@@ -1570,6 +1627,7 @@ const plain = decryptObject(encrypted);
 | **What algorithm does this use?** | AES-256 (Advanced Encryption Standard, 256-bit key) via the `crypto-js` library. This is the same standard used by banks, governments, and military. |
 | **Can I encrypt things OTHER than passwords?** | Yes! API tokens, database connection strings, email credentials — anything sensitive. |
 | **What does the encrypted text look like?** | It always starts with `U2FsdGVk` (this is a CryptoJS signature). Example: `U2FsdGVkX19KxmE7qLz+3T8VjY9pR2wN...` |
+| **Can I encrypt passwords in YAML files?** | Yes! Use `${ENC:ciphertext}` syntax. The test-data-loader auto-decrypts them at runtime. Run `npm run encrypt-password` to get the ciphertext. |
 
 ---
 
