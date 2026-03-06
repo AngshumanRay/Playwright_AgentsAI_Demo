@@ -1,5 +1,5 @@
 // =============================================================================
-// tests/global-setup.ts — GLOBAL SETUP (RUNS ONCE BEFORE ALL TESTS)
+// utils/framework/global-setup.ts — GLOBAL SETUP (RUNS ONCE BEFORE ALL TESTS)
 // =============================================================================
 // PURPOSE:
 //   This file runs ONCE before any test starts. It's the "pre-flight checklist".
@@ -53,26 +53,26 @@
 import { type FullConfig } from '@playwright/test';
 
 // Import our XRAY utilities
-import { testJiraConnection }       from '../utils/jira-xray/jira-auth';
-import { fetchTestCasesFromTestSet } from '../utils/jira-xray/xray-test-set';
-import { createTestExecution }       from '../utils/jira-xray/xray-test-execution';
-import { initializeXrayState }       from '../utils/jira-xray/xray-state';
+import { testJiraConnection }       from '../jira-xray/jira-auth';
+import { fetchTestCasesFromTestSet } from '../jira-xray/xray-test-set';
+import { createTestExecution }       from '../jira-xray/xray-test-execution';
+import { initializeXrayState }       from '../jira-xray/xray-state';
 
 // Import optional utility status checkers
-import { isDbConfigured, seedTestData } from '../utils/database/test-data-manager';
-import { isEmailConfigured }    from '../utils/email/email-verifier';
+import { isDbConfigured, seedTestData } from '../database/test-data-manager';
+import { isEmailConfigured }    from '../email/email-verifier';
 
 // Import enhanced logger (collects structured data for the HTML report)
-import { enhancedLogger }       from '../utils/helpers/enhanced-logger';
+import { enhancedLogger }       from '../helpers/enhanced-logger';
 
 // Import encryption helper (check if passwords are protected)
-import { isEncryptionConfigured } from '../utils/security/crypto-helper';
+import { isEncryptionConfigured } from '../security/crypto-helper';
 
 // Import config (reads from .env)
-import { config } from '../config/environment';
+import { config } from '../../config/environment';
 
 // Import the logger
-import { logger } from '../utils/helpers/logger';
+import { logger } from '../helpers/logger';
 
 // =============================================================================
 // GLOBAL SETUP FUNCTION

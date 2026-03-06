@@ -109,7 +109,7 @@ annotation: { type: 'xray', description: 'PROJ-101' }
 | `type: 'xray'` | Tells our fixture: "This annotation is for XRAY linking" |
 | `description: 'PROJ-101'` | The JIRA XRAY test case key this test maps to |
 
-The fixture in `tests/xray-test-fixture.ts` reads this annotation before running the test:
+The fixture in `utils/framework/xray-test-fixture.ts` reads this annotation before running the test:
 ```typescript
 const xrayAnnotation = testInfo.annotations.find(
   (annotation) => annotation.type.toLowerCase() === 'xray'
@@ -129,7 +129,7 @@ xrayKey = xrayAnnotation.description.trim(); // → "PROJ-101"
 
 ## 3. Phase 1 — Global Setup (Before Tests Run)
 
-**File:** `tests/global-setup.ts`  
+**File:** `utils/framework/global-setup.ts`  
 **When:** Runs once before any test executes  
 **Duration:** < 1 second
 
@@ -186,7 +186,7 @@ The setup checks these 3 values in `.env`:
 
 ## 4. Phase 2 — Test Execution (Playwright Runs Each Test)
 
-**File:** `tests/login.test.ts` (test cases) + `tests/xray-test-fixture.ts` (XRAY wrapper)  
+**File:** `tests/login.test.ts` (test cases) + `utils/framework/xray-test-fixture.ts` (XRAY wrapper)  
 **When:** After global setup completes  
 **Workers:** 1 (sequential execution)
 
@@ -225,7 +225,7 @@ Two layers of protection are in place so popups never block tests:
 
 ## 5. Phase 3 — Global Teardown (Push Results to XRAY)
 
-**File:** `tests/global-teardown.ts`  
+**File:** `utils/framework/global-teardown.ts`  
 **When:** Runs once after ALL tests finish  
 **Duration:** < 1 second
 
@@ -533,13 +533,13 @@ Running 3 tests using 1 worker
 |------|------|-------------|
 | `.env` | Configuration | Provided BASE_URL, JIRA credentials (placeholders), XRAY settings |
 | `config/environment.ts` | Config loader | Read `.env` into typed `config` object |
-| `tests/global-setup.ts` | Pre-flight | Detected placeholders → skipped JIRA → initialized state file |
-| `tests/xray-test-fixture.ts` | Test wrapper | Read annotations → ran tests → saved results to state |
+| `utils/framework/global-setup.ts` | Pre-flight | Detected placeholders → skipped JIRA → initialized state file |
+| `utils/framework/xray-test-fixture.ts` | Test wrapper | Read annotations → ran tests → saved results to state |
 | `tests/login.test.ts` | Test cases | 3 tests with XRAY annotations + LoginPage interactions |
 | `pages/LoginPage.ts` | Page Object | Encapsulated login page actions (navigate, fill, click, verify) |
 | `pages/BasePage.ts` | Base class | Provided shared methods (navigate, click, fill, cookie handling) |
 | `utils/jira-xray/xray-state.ts` | State store | Managed `xray-state.json` (init, append, read, clear) |
-| `tests/global-teardown.ts` | Post-flight | Read state → detected NOT_CONFIGURED → skipped upload → cleaned up |
+| `utils/framework/global-teardown.ts` | Post-flight | Read state → detected NOT_CONFIGURED → skipped upload → cleaned up |
 
 ---
 

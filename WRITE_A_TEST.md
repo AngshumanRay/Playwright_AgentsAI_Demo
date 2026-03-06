@@ -67,7 +67,7 @@ Copy everything below and paste it into your new file.
 Don't change anything yet — we'll do that in the next steps.
 
 ```typescript
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 
 test.describe('CHANGE ME: Your Feature Name', () => {
@@ -251,7 +251,7 @@ To add a second test, copy the `test(...)` block and paste it below the first on
 Change the test name, XRAY ID, and steps.
 
 ```typescript
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 
 test.describe('Login Feature Tests', () => {
@@ -309,7 +309,7 @@ against https://the-internet.herokuapp.com/login.
 ```typescript
 // File: tests/my-first-test.test.ts
 
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 
 test.describe('Login Feature Tests', () => {
@@ -460,7 +460,7 @@ enhancedLogger.pass('TC01 passed — Login worked correctly', xrayTestKey);
 **What it means:** The top of your file has a typo.
 **Fix:** Make sure your file starts with EXACTLY these two lines:
 ```typescript
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 ```
 
@@ -517,7 +517,7 @@ await expect(page.getByText('Welcome')).toBeVisible();
 Save this as `tests/your-feature.test.ts` and fill in the parts marked `← CHANGE`:
 
 ```typescript
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 
 test.describe('Your Feature Name', () => {                          // ← CHANGE
@@ -634,7 +634,7 @@ Create a new file `tests/my-iframe-test.test.ts`. The `.test.ts` ending is requi
 
 ```typescript
 import path from 'path';
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { BasePage } from '../pages/BasePage';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 import { getTestData, isTestEnabled } from '../utils/helpers/test-data-loader';

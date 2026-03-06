@@ -655,8 +655,8 @@ export default defineConfig({
   //
   // globalTeardown: Runs once after all tests finish
   //   → Uploads all results to XRAY
-  globalSetup:    './tests/global-setup.ts',
-  globalTeardown: './tests/global-teardown.ts',
+  globalSetup:    './utils/framework/global-setup.ts',
+  globalTeardown: './utils/framework/global-teardown.ts',
 
   // ==========================================================================
   // REPORTER
@@ -7554,10 +7554,10 @@ echo "  📄 Created utils/reporting/report-generator.ts"
 # =============================================================================
 
 
-# ── tests/xray-state-helper.ts ──
-cat > "tests/xray-state-helper.ts" << 'ENDOFFILE_tests_xray_state_helper_ts'
+# ── utils/framework/xray-state-helper.ts ──
+cat > "utils/framework/xray-state-helper.ts" << 'ENDOFFILE_tests_xray_state_helper_ts'
 // =============================================================================
-// tests/xray-state-helper.ts — THIN WRAPPER FOR XRAY STATE
+// utils/framework/xray-state-helper.ts — THIN WRAPPER FOR XRAY STATE
 // =============================================================================
 // PURPOSE:
 //   This is a thin "bridge" file that re-exports the appendTestResult function
@@ -7572,12 +7572,12 @@ cat > "tests/xray-state-helper.ts" << 'ENDOFFILE_tests_xray_state_helper_ts'
 export { appendTestResult, appendPerfData, appendA11yData, appendLogEntries } from '../utils/jira-xray/xray-state';
 
 ENDOFFILE_tests_xray_state_helper_ts
-echo "  📄 Created tests/xray-state-helper.ts"
+echo "  📄 Created utils/framework/xray-state-helper.ts"
 
-# ── tests/xray-test-fixture.ts ──
-cat > "tests/xray-test-fixture.ts" << 'ENDOFFILE_tests_xray_test_fixture_ts'
+# ── utils/framework/xray-test-fixture.ts ──
+cat > "utils/framework/xray-test-fixture.ts" << 'ENDOFFILE_tests_xray_test_fixture_ts'
 // =============================================================================
-// tests/xray-test-fixture.ts — CUSTOM PLAYWRIGHT TEST FIXTURE WITH XRAY
+// utils/framework/xray-test-fixture.ts — CUSTOM PLAYWRIGHT TEST FIXTURE WITH XRAY
 // =============================================================================
 // PURPOSE:
 //   This file creates a CUSTOM "test" function that extends Playwright's default
@@ -7592,7 +7592,7 @@ cat > "tests/xray-test-fixture.ts" << 'ENDOFFILE_tests_xray_test_fixture_ts'
 //
 // HOW TESTS USE THIS:
 //   Instead of: import { test, expect } from '@playwright/test';
-//   Tests use:  import { test, expect } from './xray-test-fixture';
+//   Tests use:  import { test, expect } from '../utils/framework/xray-test-fixture';
 //
 //   The only difference in the test code is specifying the XRAY test key:
 //     test('my test name', { tag: '@PROJ-101' }, async ({ page, xrayTestKey }) => {
@@ -7858,12 +7858,12 @@ export const test = base.extend<XrayFixtures>({
 export { expect };
 
 ENDOFFILE_tests_xray_test_fixture_ts
-echo "  📄 Created tests/xray-test-fixture.ts"
+echo "  📄 Created utils/framework/xray-test-fixture.ts"
 
-# ── tests/global-setup.ts ──
-cat > "tests/global-setup.ts" << 'ENDOFFILE_tests_global_setup_ts'
+# ── utils/framework/global-setup.ts ──
+cat > "utils/framework/global-setup.ts" << 'ENDOFFILE_tests_global_setup_ts'
 // =============================================================================
-// tests/global-setup.ts — GLOBAL SETUP (RUNS ONCE BEFORE ALL TESTS)
+// utils/framework/global-setup.ts — GLOBAL SETUP (RUNS ONCE BEFORE ALL TESTS)
 // =============================================================================
 // PURPOSE:
 //   This file runs ONCE before any test starts. It's the "pre-flight checklist".
@@ -8125,12 +8125,12 @@ function isJiraPlaceholder(): boolean {
 }
 
 ENDOFFILE_tests_global_setup_ts
-echo "  📄 Created tests/global-setup.ts"
+echo "  📄 Created utils/framework/global-setup.ts"
 
-# ── tests/global-teardown.ts ──
-cat > "tests/global-teardown.ts" << 'ENDOFFILE_tests_global_teardown_ts'
+# ── utils/framework/global-teardown.ts ──
+cat > "utils/framework/global-teardown.ts" << 'ENDOFFILE_tests_global_teardown_ts'
 // =============================================================================
-// tests/global-teardown.ts — GLOBAL TEARDOWN (RUNS ONCE AFTER ALL TESTS)
+// utils/framework/global-teardown.ts — GLOBAL TEARDOWN (RUNS ONCE AFTER ALL TESTS)
 // =============================================================================
 // PURPOSE:
 //   This file runs ONCE after ALL tests have finished. It's the "cleanup crew".
@@ -8356,7 +8356,7 @@ async function runPostRunTasks(state: NonNullable<ReturnType<typeof readXrayStat
 }
 
 ENDOFFILE_tests_global_teardown_ts
-echo "  📄 Created tests/global-teardown.ts"
+echo "  📄 Created utils/framework/global-teardown.ts"
 
 # ── tests/login.test.ts ──
 cat > "tests/login.test.ts" << 'ENDOFFILE_tests_login_test_ts'
@@ -8403,7 +8403,7 @@ cat > "tests/login.test.ts" << 'ENDOFFILE_tests_login_test_ts'
 //   - Everything from standard Playwright test (page, expect, etc.)
 //   - xrayTestKey: The XRAY test case ID linked to this test
 //   - Automatic result upload to XRAY after each test
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 
 // Import the LoginPage object (our POM class for the login page)
 import { LoginPage } from '../pages/LoginPage';
@@ -8626,7 +8626,7 @@ cat > "tests/api.test.ts" << 'ENDOFFILE_tests_api_test_ts'
 // =============================================================================
 
 // Import our custom test fixture (provides xrayTestKey + auto result upload)
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 
 // Import the API helper functions
 import { apiGet, apiPost } from '../utils/api/api-helper';
@@ -8980,7 +8980,7 @@ cat > "tests/playwright-dev.test.ts" << 'ENDOFFILE_tests_playwright_dev_test_ts'
 //  │    Example: tests/playwright-dev.test.ts                              │
 //  │                                                                       │
 //  │  STEP 2: ADD THE IMPORTS (copy these 3 lines)                        │
-//  │    import { test, expect } from './xray-test-fixture';                │
+//  │    import { test, expect } from '../utils/framework/xray-test-fixture';                │
 //  │    import { PlaywrightDevPage } from '../pages/PlaywrightDevPage';    │
 //  │    import { enhancedLogger } from '../utils/helpers/enhanced-logger';  │
 //  │                                                                       │
@@ -9015,7 +9015,7 @@ cat > "tests/playwright-dev.test.ts" << 'ENDOFFILE_tests_playwright_dev_test_ts'
 //     ✅ Performance metrics collection (page load, FCP, LCP)
 //   You get all of this for FREE just by using this import.
 // ─────────────────────────────────────────────────────────────────────────────
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IMPORT 2: The Page Object for playwright.dev

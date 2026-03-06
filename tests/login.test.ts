@@ -41,7 +41,7 @@
 //   - Everything from standard Playwright test (page, expect, etc.)
 //   - xrayTestKey: The XRAY test case ID linked to this test
 //   - Automatic result upload to XRAY after each test
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 
 // Import the LoginPage object (our POM class for the login page)
 import { LoginPage } from '../pages/LoginPage';

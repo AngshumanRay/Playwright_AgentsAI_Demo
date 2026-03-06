@@ -271,7 +271,7 @@ await basePage.typeInIframe(editorFrame, '#tinymce', 'Meeting notes...', 'Notes 
 
 ```typescript
 import path from 'path';
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { BasePage } from '../pages/BasePage';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 import { getTestData, isTestEnabled } from '../utils/helpers/test-data-loader';
@@ -584,7 +584,7 @@ npm test
 config/environment.ts             ← Reads .env → exports config.jira.*, config.xray.*
     │
     ▼
-tests/global-setup.ts             ← PHASE 1: Orchestrates the full setup flow
+utils/framework/global-setup.ts             ← PHASE 1: Orchestrates the full setup flow
     │
     ├──→ utils/jira-xray/jira-auth.ts
     │      └─ createJiraApiClient()    → pre-configured HTTP client for JIRA API
@@ -601,7 +601,7 @@ tests/global-setup.ts             ← PHASE 1: Orchestrates the full setup flow
            └─ initializeXrayState()    → saves executionKey to xray-state.json
     │
     ▼
-tests/xray-test-fixture.ts       ← PHASE 2: Wraps every test with XRAY tracking
+utils/framework/xray-test-fixture.ts       ← PHASE 2: Wraps every test with XRAY tracking
     │
     ├──→ Reads annotation → extracts xrayTestKey ("PROJ-101")
     ├──→ After test: maps Playwright status → XRAY status
@@ -609,7 +609,7 @@ tests/xray-test-fixture.ts       ← PHASE 2: Wraps every test with XRAY trackin
     └──→ appendTestResult() → writes to xray-state.json
     │
     ▼
-tests/global-teardown.ts          ← PHASE 3: Uploads all results to XRAY
+utils/framework/global-teardown.ts          ← PHASE 3: Uploads all results to XRAY
     │
     ├──→ readXrayState()           → reads xray-state.json
     ├──→ utils/jira-xray/xray-result-updater.ts
@@ -698,9 +698,9 @@ The only thing missing is the JIRA upload — results stay local only.
 - `utils/jira-xray/xray-test-execution.ts` — creates Test Execution ticket, links Test Cases
 - `utils/jira-xray/xray-result-updater.ts` — uploads PASS/FAIL status + screenshot evidence
 - `utils/jira-xray/xray-state.ts` — shared JSON file that stores execution key + results between phases
-- `tests/xray-test-fixture.ts` — the Playwright fixture that automatically reports results
-- `tests/global-setup.ts` — orchestrates Phase 1 (auth → fetch → create execution)
-- `tests/global-teardown.ts` — orchestrates Phase 3 (upload results → generate report)
+- `utils/framework/xray-test-fixture.ts` — the Playwright fixture that automatically reports results
+- `utils/framework/global-setup.ts` — orchestrates Phase 1 (auth → fetch → create execution)
+- `utils/framework/global-teardown.ts` — orchestrates Phase 3 (upload results → generate report)
 
 ---
 
@@ -1246,7 +1246,7 @@ This framework handles ALL of that automatically. No popups will block your test
 
 | Popup Type | How It's Handled | Where |
 |-----------|-----------------|-------|
-| **Browser alerts/confirms** (JavaScript popups) | Auto-accepted before every test | `tests/xray-test-fixture.ts` |
+| **Browser alerts/confirms** (JavaScript popups) | Auto-accepted before every test | `utils/framework/xray-test-fixture.ts` |
 | **Cookie banners** (HTML overlay buttons) | Auto-clicked when navigating | `pages/BasePage.ts` → `dismissCookieBanner()` |
 
 ### What cookie button texts does it recognize?
@@ -1816,10 +1816,10 @@ MY_TOOL_SETTING=some-value
 
 | If your utility should run... | Add it to... |
 |------------------------------|-------------|
-| Once BEFORE all tests | `tests/global-setup.ts` |
-| Once AFTER all tests | `tests/global-teardown.ts` |
+| Once BEFORE all tests | `utils/framework/global-setup.ts` |
+| Once AFTER all tests | `utils/framework/global-teardown.ts` |
 | Inside individual tests | Import it directly in your `.test.ts` file |
-| Around every test (before + after) | `tests/xray-test-fixture.ts` |
+| Around every test (before + after) | `utils/framework/xray-test-fixture.ts` |
 
 ### Step 6: Add to the barrel file (optional, for clean imports)
 
@@ -1848,9 +1848,9 @@ The framework will show your tool in the Utility Status Dashboard:
 |------|-----------------|
 | **`.env`** | Your private settings (URLs, passwords, API keys) |
 | **`config/environment.ts`** | Reads `.env` and makes it available as `config.xxx` |
-| **`tests/global-setup.ts`** | Runs ONCE before tests — XRAY setup, DB seed, utility checks |
-| **`tests/global-teardown.ts`** | Runs ONCE after all tests — XRAY upload, HTML report, DB cleanup |
-| **`tests/xray-test-fixture.ts`** | Wraps every test with XRAY reporting + a11y scan + popup handling |
+| **`utils/framework/global-setup.ts`** | Runs ONCE before tests — XRAY setup, DB seed, utility checks |
+| **`utils/framework/global-teardown.ts`** | Runs ONCE after all tests — XRAY upload, HTML report, DB cleanup |
+| **`utils/framework/xray-test-fixture.ts`** | Wraps every test with XRAY reporting + a11y scan + popup handling |
 | **`tests/login.test.ts`** | UI test cases — 3 login tests (TC01–TC03) |
 | **`tests/api.test.ts`** | API test cases — 3 REST API tests (TC04–TC06) |
 | **`tests/playwright-dev.test.ts`** | Navigation test cases — 5 playwright.dev tests (TC07–TC11) |

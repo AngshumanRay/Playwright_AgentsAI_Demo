@@ -531,7 +531,7 @@ const mapping = require('../config/test-mapping.json');
 
 > **Our framework uses Method A (Annotations) as the default** because it's
 > the most transparent for beginners. But you can switch to any other method
-> by modifying `tests/xray-test-fixture.ts` — all the XRAY API plumbing
+> by modifying `utils/framework/xray-test-fixture.ts` — all the XRAY API plumbing
 > stays the same regardless of which method you choose.
 
 ---
@@ -722,9 +722,9 @@ reports/execution-report-2026-03-03.html
 | `utils/security/crypto-helper.ts` | The "locksmith" — AES-256 encrypt/decrypt for passwords and secrets; includes an interactive CLI tool (`npm run encrypt-password`) to generate encrypted values for YAML or .env |
 | `test-data/*.yaml` | The "answer sheets" — 2 YAML files (`ui-tests.yaml` + `api-tests.yaml`) with test inputs, expected results, `run: yes/no` toggle, and `${ENC:...}` encrypted passwords |
 | `logs/test-run-*.log` | The "diary" — log file for each run, with a PASS/FAIL summary at the very top |
-| `tests/global-setup.ts` | The "pre-flight checklist" — runs once before any test (auth, fetch, create execution) |
-| `tests/global-teardown.ts` | The "cleanup crew" — runs once after all tests (uploads results, generates report) |
-| `tests/xray-test-fixture.ts` | The "score tracker" — wraps every test to save its result automatically |
+| `utils/framework/global-setup.ts` | The "pre-flight checklist" — runs once before any test (auth, fetch, create execution) |
+| `utils/framework/global-teardown.ts` | The "cleanup crew" — runs once after all tests (uploads results, generates report) |
+| `utils/framework/xray-test-fixture.ts` | The "score tracker" — wraps every test to save its result automatically |
 | `tests/login.test.ts` | The UI tests — 3 browser-based login tests |
 | `tests/api.test.ts` | The API tests — 3 REST API tests that don't use a browser |
 | `tests/playwright-dev.test.ts` | The navigation tests — 5 playwright.dev tests |

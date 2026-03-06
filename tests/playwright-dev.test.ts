@@ -54,7 +54,7 @@
 //  │    Example: tests/playwright-dev.test.ts                              │
 //  │                                                                       │
 //  │  STEP 2: ADD THE IMPORTS (copy these 3 lines)                        │
-//  │    import { test, expect } from './xray-test-fixture';                │
+//  │    import { test, expect } from '../utils/framework/xray-test-fixture';│
 //  │    import { PlaywrightDevPage } from '../pages/PlaywrightDevPage';    │
 //  │    import { enhancedLogger } from '../utils/helpers/enhanced-logger';  │
 //  │                                                                       │
@@ -89,7 +89,7 @@
 //     ✅ Performance metrics collection (page load, FCP, LCP)
 //   You get all of this for FREE just by using this import.
 // ─────────────────────────────────────────────────────────────────────────────
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IMPORT 2: The Page Object for playwright.dev

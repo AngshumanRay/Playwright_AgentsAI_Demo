@@ -1,5 +1,5 @@
 // =============================================================================
-// tests/global-teardown.ts — GLOBAL TEARDOWN (RUNS ONCE AFTER ALL TESTS)
+// utils/framework/global-teardown.ts — GLOBAL TEARDOWN (RUNS ONCE AFTER ALL TESTS)
 // =============================================================================
 // PURPOSE:
 //   This file runs ONCE after ALL tests have finished. It's the "cleanup crew".
@@ -37,24 +37,24 @@
 import { type FullConfig } from '@playwright/test';
 
 // Import XRAY result updater and state utilities
-import { updateMultipleTestResults } from '../utils/jira-xray/xray-result-updater';
-import { readXrayState, clearXrayState }   from '../utils/jira-xray/xray-state';
-import { getTestExecutionStatus }          from '../utils/jira-xray/xray-test-execution';
+import { updateMultipleTestResults } from '../jira-xray/xray-result-updater';
+import { readXrayState, clearXrayState }   from '../jira-xray/xray-state';
+import { getTestExecutionStatus }          from '../jira-xray/xray-test-execution';
 
 // Import optional utility functions
-import { isDbConfigured, cleanupTestData }          from '../utils/database/test-data-manager';
+import { isDbConfigured, cleanupTestData }          from '../database/test-data-manager';
 
 // Import report generator (generates a beautiful HTML report with charts)
-import { generateReport } from '../utils/reporting/report-generator';
+import { generateReport } from '../reporting/report-generator';
 
 // Import enhanced logger (collects structured data for the report)
-import { enhancedLogger } from '../utils/helpers/enhanced-logger';
+import { enhancedLogger } from '../helpers/enhanced-logger';
 
 // Import logger
-import { logger } from '../utils/helpers/logger';
+import { logger } from '../helpers/logger';
 
 // Import config
-import { config } from '../config/environment';
+import { config } from '../../config/environment';
 
 // =============================================================================
 // GLOBAL TEARDOWN FUNCTION

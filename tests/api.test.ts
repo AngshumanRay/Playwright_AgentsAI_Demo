@@ -40,7 +40,7 @@
 // =============================================================================
 
 // Import our custom test fixture (provides xrayTestKey + auto result upload)
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 
 // Import the API helper functions
 import { apiGet, apiPost } from '../utils/api/api-helper';

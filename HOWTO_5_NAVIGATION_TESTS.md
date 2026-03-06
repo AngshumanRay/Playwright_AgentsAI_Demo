@@ -217,12 +217,12 @@ async verifyUrlContains(expected: string): Promise<void> {
 #### 4a. Start with imports
 
 ```typescript
-import { test, expect } from './xray-test-fixture';            // custom fixture
+import { test, expect } from '../utils/framework/xray-test-fixture';            // custom fixture
 import { PlaywrightDevPage } from '../pages/PlaywrightDevPage'; // our page object
 import { enhancedLogger } from '../utils/helpers/enhanced-logger'; // step logging
 ```
 
-> **Why `./xray-test-fixture` instead of `@playwright/test`?**
+> **Why `../utils/framework/xray-test-fixture` instead of `@playwright/test`?**
 > Our custom fixture automatically adds:
 > - XRAY result reporting (PASS/FAIL → JIRA)
 > - Screenshot on failure
@@ -478,9 +478,9 @@ Files CREATED (2 new files):
 
 Files NOT CHANGED:
 ──────────────────────────────────────────────────────────────
-  tests/xray-test-fixture.ts        ← Auto-discovers new tests (no change needed)
-  tests/global-setup.ts             ← Runs before ALL tests (no change needed)
-  tests/global-teardown.ts          ← Generates report for ALL tests (no change needed)
+  utils/framework/xray-test-fixture.ts        ← Auto-discovers new tests (no change needed)
+  utils/framework/global-setup.ts             ← Runs before ALL tests (no change needed)
+  utils/framework/global-teardown.ts          ← Generates report for ALL tests (no change needed)
   pages/BasePage.ts                 ← Parent class (already has all common methods)
   playwright.config.ts              ← Already finds **/*.test.ts (no change needed)
   .env                              ← Only need XRAY keys for new test cases

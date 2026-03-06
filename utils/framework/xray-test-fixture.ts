@@ -1,5 +1,5 @@
 // =============================================================================
-// tests/xray-test-fixture.ts — CUSTOM PLAYWRIGHT TEST FIXTURE WITH XRAY
+// utils/framework/xray-test-fixture.ts — CUSTOM PLAYWRIGHT TEST FIXTURE WITH XRAY
 // =============================================================================
 // PURPOSE:
 //   This file creates a CUSTOM "test" function that extends Playwright's default
@@ -14,7 +14,7 @@
 //
 // HOW TESTS USE THIS:
 //   Instead of: import { test, expect } from '@playwright/test';
-//   Tests use:  import { test, expect } from './xray-test-fixture';
+//   Tests use:  import { test, expect } from '../utils/framework/xray-test-fixture';
 //
 //   The only difference in the test code is specifying the XRAY test key:
 //     test('my test name', { tag: '@PROJ-101' }, async ({ page, xrayTestKey }) => {
@@ -37,13 +37,13 @@ import { test as base, expect } from '@playwright/test';
 import { appendTestResult, appendPerfData, appendA11yData, appendLogEntries } from './xray-state-helper';
 
 // Import screenshot helper
-import { captureFailureScreenshot } from '../utils/helpers/screenshot';
+import { captureFailureScreenshot } from '../helpers/screenshot';
 
 // Import the logger
-import { logger } from '../utils/helpers/logger';
+import { logger } from '../helpers/logger';
 
 // Import enhanced logger — collects structured data for the HTML report
-import { enhancedLogger } from '../utils/helpers/enhanced-logger';
+import { enhancedLogger } from '../helpers/enhanced-logger';
 
 // Import axe-core accessibility scanner
 import AxeBuilder from '@axe-core/playwright';

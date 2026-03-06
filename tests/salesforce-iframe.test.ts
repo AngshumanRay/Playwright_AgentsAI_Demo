@@ -46,7 +46,7 @@
 // IMPORTS
 // ─────────────────────────────────────────────────────────────────────────────
 import path from 'path';
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { BasePage } from '../pages/BasePage';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 import { getTestData, isTestEnabled } from '../utils/helpers/test-data-loader';

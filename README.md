@@ -76,15 +76,11 @@ A one-command test framework that does three things automatically:
 ```
 project-root/
 │
-├── tests/                        ← TEST FILES (what to test)
+├── tests/                        ← TEST FILES (what to test — only .test.ts files live here)
 │   ├── login.test.ts             ← UI tests: Login feature (3 test cases: TC01-TC03)
 │   ├── api.test.ts               ← API tests: Backend REST API (3 test cases: TC04-TC06)
 │   ├── playwright-dev.test.ts    ← Navigation tests: playwright.dev (5 test cases: TC07-TC11)
-│   ├── salesforce-iframe.test.ts  ← Iframe tests: Salesforce-style multi-iframe (2 test cases: TC12-TC13)
-│   ├── global-setup.ts           ← Runs ONCE before all tests (XRAY setup, DB seed)
-│   ├── global-teardown.ts        ← Runs ONCE after all tests (upload results, HTML report)
-│   ├── xray-test-fixture.ts      ← Adds XRAY reporting + a11y scan to every test automatically
-│   └── xray-state-helper.ts      ← Small bridge file for shared state
+│   └── salesforce-iframe.test.ts ← Iframe tests: Salesforce-style multi-iframe (2 test cases: TC12-TC13)
 │
 ├── pages/                        ← PAGE OBJECTS (how to interact with pages)
 │   ├── BasePage.ts               ← Common actions: click, fill, navigate, cookies...
@@ -93,6 +89,11 @@ project-root/
 │   └── SalesforceIframePage.ts   ← Salesforce-style iframe actions (fill forms inside iframes)
 │
 ├── utils/                        ← UTILITIES (helper code — one folder per tool)
+│   ├── framework/                ← Framework plumbing (setup, teardown, test fixture)
+│   │   ├── global-setup.ts       ←   Runs ONCE before all tests (XRAY setup, DB seed)
+│   │   ├── global-teardown.ts    ←   Runs ONCE after all tests (upload results, HTML report)
+│   │   ├── xray-test-fixture.ts  ←   Adds XRAY reporting + a11y scan to every test automatically
+│   │   └── xray-state-helper.ts  ←   Small bridge file for shared state
 │   ├── jira-xray/                ← JIRA XRAY integration
 │   │   ├── jira-auth.ts          ←   JIRA API authentication
 │   │   ├── xray-test-set.ts      ←   Fetch test cases from XRAY Test Set
@@ -448,7 +449,7 @@ Create `tests/your-feature.test.ts` (or add to an existing test file).
 ### Step 2: Use this template:
 ```typescript
 // Import our custom test function (includes XRAY integration + a11y scan)
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 
 // Import the page object for the page you're testing
 import { YourPage } from '../pages/YourPage';
@@ -481,7 +482,7 @@ test.describe('Your Feature Tests', () => {
 ### Writing an API Test (direct backend call)
 
 ```typescript
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { apiGet, apiPost } from '../utils';
 
 test.describe('User API Tests', () => {
@@ -648,7 +649,7 @@ Save this as `tests/your-iframe-test.test.ts`:
 
 ```typescript
 import path from 'path';
-import { test, expect } from './xray-test-fixture';
+import { test, expect } from '../utils/framework/xray-test-fixture';
 import { BasePage } from '../pages/BasePage';
 import { enhancedLogger } from '../utils/helpers/enhanced-logger';
 import { getTestData, isTestEnabled } from '../utils/helpers/test-data-loader';

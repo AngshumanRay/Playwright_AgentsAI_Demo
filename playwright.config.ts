@@ -103,8 +103,8 @@ export default defineConfig({
   //
   // globalTeardown: Runs once after all tests finish
   //   → Uploads all results to XRAY
-  globalSetup:    './tests/global-setup.ts',
-  globalTeardown: './tests/global-teardown.ts',
+  globalSetup:    './utils/framework/global-setup.ts',
+  globalTeardown: './utils/framework/global-teardown.ts',
 
   // ==========================================================================
   // REPORTER
