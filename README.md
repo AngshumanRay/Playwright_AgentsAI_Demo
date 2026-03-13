@@ -25,8 +25,8 @@ open reports/execution-report-*.html   # View the visual report in your browser
 | **[README.md](README.md)** (you're here) | Setup, install, run commands, iframe guide, troubleshooting | **Everyone — start here** |
 | **[GETTING_STARTED.md](GETTING_STARTED.md)** | Quick start for NEW consumers (clone → init → run) | **People receiving this framework for the first time** |
 | **[WRITE_A_TEST.md](WRITE_A_TEST.md)** | Copy-paste guide to write your first test (includes iframe section) | **Non-technical users** |
-| **[CAPABILITIES.md](CAPABILITIES.md)** | Every feature explained in plain English (includes iframe guide) | **New team members exploring the framework** |
-| **[SKILLS.md](SKILLS.md)** | Framework skills & techniques at a glance | **Quick reference for what the framework can do** |
+| **[CAPABILITIES.md](CAPABILITIES.md)** | Every feature & skill explained in plain English (also serves as SKILLS.md) | **New team members exploring the framework** |
+| **[TEST_CASES.md](TEST_CASES.md)** | User Stories → Test Cases → Test Scripts traceability matrix | **QA leads, business analysts, auditors** |
 | **[WALKTHROUGH.md](WALKTHROUGH.md)** | End-to-end XRAY flow with diagrams | **Anyone learning how JIRA reporting works** |
 | **[HOWTO_5_NAVIGATION_TESTS.md](HOWTO_5_NAVIGATION_TESTS.md)** | Step-by-step guide: how the 5 navigation tests were built | **Anyone adding new test suites** |
 | **[docs/RUN_REPORT_*.md](docs/)** | Auto-generated run reports | Anyone reviewing past test runs |
@@ -146,8 +146,8 @@ project-root/
 │
 ├── GETTING_STARTED.md            ← 🚀 Quick start for NEW consumers
 ├── WRITE_A_TEST.md               ← ✍️  How to write a test (zero coding knowledge needed)
-├── CAPABILITIES.md               ← 🧰 What can this framework do?
-├── SKILLS.md                     ← 🎯 Framework skills & techniques at a glance
+├── CAPABILITIES.md               ← 🧰 What can this framework do? (also serves as SKILLS.md)
+├── TEST_CASES.md                 ← 📋 User Stories → Test Cases → Test Scripts traceability
 ├── WALKTHROUGH.md                ← 📖 How the XRAY flow works end-to-end
 ├── HOWTO_5_NAVIGATION_TESTS.md   ← 🧭 Step-by-step: how the 5 navigation tests were built
 ├── README.md                     ← 📚 Setup guide (this file)
