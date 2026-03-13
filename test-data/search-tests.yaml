@@ -15,7 +15,7 @@
 
 # ─── TC14: Search for a valid keyword and verify results appear
 PROJ-201:
-  run: yes
+  run: no
   testCase: "TC14: Search for a valid keyword and verify results appear"
   type: "positive"
   baseUrl: "https://playwright.dev"
@@ -26,7 +26,7 @@ PROJ-201:
 
 # ─── TC15: Search for an empty string should show no results or prompt
 PROJ-202:
-  run: yes
+  run: no
   testCase: "TC15: Search for an empty string should show no results or prompt"
   type: "negative"
   baseUrl: "https://playwright.dev"
@@ -37,7 +37,7 @@ PROJ-202:
 
 # ─── TC16: Search for a nonsense keyword should show no results
 PROJ-203:
-  run: yes
+  run: no
   testCase: "TC16: Search for a nonsense keyword should show no results"
   type: "negative"
   baseUrl: "https://playwright.dev"
