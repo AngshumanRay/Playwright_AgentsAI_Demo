@@ -791,3 +791,143 @@ Step 5: Update the Traceability Matrix (above)
 *Last updated: 13 March 2026*
 *Framework: Playwright AutoAgent – AI Automation Framework*
 *Tests: 3 Login (UI; TC01 ×2 data sets) + 3 API (REST) + 5 Navigation (UI) + 2 Iframe (UI) = 14 total executions*
+
+# ═══════════════════════════════════════════════════════════════════════════
+# US-05: SEARCH FUNCTIONALITY (AUTO-GENERATED)
+# ═══════════════════════════════════════════════════════════════════════════
+
+## 📖 User Story US-05
+
+> As a user, I want to search for content on the website, so that I can quickly find relevant information without manually browsing.
+
+**Priority:** High  
+**Module:** Search  
+**Target:** `https://playwright.dev`  
+
+**Acceptance Criteria:**
+- ✅ AC-1: Search for a valid keyword and verify results appear
+- ✅ AC-2: Search for an empty string should show no results or prompt
+- ✅ AC-3: Search for a nonsense keyword should show no results
+
+---
+
+### TC14: Search for a valid keyword and verify results appear
+
+| Field | Value |
+|---|---|
+| **Test Case ID** | TC14 |
+| **XRAY Key** | PROJ-201 |
+| **Priority** | High |
+| **Type** | Positive |
+
+**Preconditions:**
+- Website is accessible
+- Search functionality is available on the page
+
+**Test Steps:**
+
+| Step | Action | Expected Result |
+|---|---|---|
+| 1 | Navigate to the documentation page | Docs page loads with search icon visible |
+| 2 | Click the search icon / press Ctrl+K to open search | Search modal opens with input field focused |
+| 3 | Type 'locator' into the search field | Search results appear showing matches |
+| 4 | Verify at least one result contains the keyword | Results list has items matching 'locator' |
+
+**Test Data:**
+
+| Field | Value |
+|---|---|
+| searchKeyword | `locator` |
+| expectedMinResults | `1` |
+| expectedUrlFragment | `/docs` |
+
+**Script Mapping:**
+
+| Attribute | Value |
+|---|---|
+| Test File | `tests/search.test.ts` |
+| Page Object | `SearchPage` |
+| Data File | `test-data/search-tests.yaml` |
+| XRAY Key | `PROJ-201` |
+
+---
+
+### TC15: Search for an empty string should show no results or prompt
+
+| Field | Value |
+|---|---|
+| **Test Case ID** | TC15 |
+| **XRAY Key** | PROJ-202 |
+| **Priority** | Medium |
+| **Type** | Negative |
+
+**Preconditions:**
+- Website is accessible
+- Search modal can be opened
+
+**Test Steps:**
+
+| Step | Action | Expected Result |
+|---|---|---|
+| 1 | Navigate to the documentation page | Docs page loads |
+| 2 | Open the search modal | Search modal opens |
+| 3 | Submit search with empty input | No results shown or a helpful prompt is displayed |
+
+**Test Data:**
+
+| Field | Value |
+|---|---|
+| searchKeyword | `` |
+| expectedMinResults | `0` |
+| expectedUrlFragment | `/docs` |
+
+**Script Mapping:**
+
+| Attribute | Value |
+|---|---|
+| Test File | `tests/search.test.ts` |
+| Page Object | `SearchPage` |
+| Data File | `test-data/search-tests.yaml` |
+| XRAY Key | `PROJ-202` |
+
+---
+
+### TC16: Search for a nonsense keyword should show no results
+
+| Field | Value |
+|---|---|
+| **Test Case ID** | TC16 |
+| **XRAY Key** | PROJ-203 |
+| **Priority** | Medium |
+| **Type** | Negative |
+
+**Preconditions:**
+- Website is accessible
+
+**Test Steps:**
+
+| Step | Action | Expected Result |
+|---|---|---|
+| 1 | Navigate to the documentation page | Docs page loads |
+| 2 | Open the search modal | Search modal opens |
+| 3 | Type 'xyzzynonexistent99' into the search field | No results found message is displayed |
+
+**Test Data:**
+
+| Field | Value |
+|---|---|
+| searchKeyword | `xyzzynonexistent99` |
+| expectedMinResults | `0` |
+| expectedNoResultsMessage | `No results` |
+| expectedUrlFragment | `/docs` |
+
+**Script Mapping:**
+
+| Attribute | Value |
+|---|---|
+| Test File | `tests/search.test.ts` |
+| Page Object | `SearchPage` |
+| Data File | `test-data/search-tests.yaml` |
+| XRAY Key | `PROJ-203` |
+
+---

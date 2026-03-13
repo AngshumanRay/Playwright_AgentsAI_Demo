@@ -133,8 +133,13 @@ project-root/
 ├── config/
 │   └── environment.ts            ← Reads .env file, exports clean config object
 │
+├── user-stories/                 ← 📖 USER STORIES (input for auto-generation pipeline)
+│   ├── _TEMPLATE.yaml            ←   Copy this to create a new user story
+│   └── US-05-search.yaml         ←   Sample: Search Functionality (3 test cases)
+│
 ├── scripts/                      ← BUILD & INIT SCRIPTS
-│   └── init-project.ts           ← Project initializer for new consumers (npm run init)
+│   ├── init-project.ts           ← Project initializer for new consumers (npm run init)
+│   └── generate-from-stories.ts  ← Auto-generator: User Stories → TCs → Scripts
 │
 ├── playwright.config.ts          ← Playwright settings (browsers, timeouts, etc.)
 ├── .env                          ← YOUR credentials (DO NOT COMMIT TO GIT!)
@@ -297,6 +302,11 @@ npm run encrypt-password
 
 # Clean up generated artifacts (reports, logs, test-results)
 npm run clean
+
+# ─── AUTO-GENERATION PIPELINE (User Stories → Test Cases → Test Scripts) ───
+npm run generate              # Full pipeline: generates YAML + test scripts + page objects + TEST_CASES.md
+npm run generate:tc           # Generate test cases + YAML data only
+npm run generate:scripts      # Generate test scripts + page objects only
 ```
 
 > **New to tests?** Just run `npm test` — it runs everything and generates the HTML report in `reports/`.
