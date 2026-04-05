@@ -1,0 +1,53 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🌐 WEB TEST DATA — Single source of truth for ALL Web/UI tests
+# ═══════════════════════════════════════════════════════════════════════════════
+# FORMAT: <StoryId>.<AC-Id>
+#   run:  true | false   → Controls whether this test executes
+#   tags: [Smoke, Sanity, Regression]  → Filter tests by tag
+#   ...data fields       → Consumed by the generated test script
+#
+# HOW TO ADD DATA:
+#   1. After generating test cases from a user story, add data here
+#   2. Key format: "US-XXX.AC-Y" (matches your story + acceptance criteria)
+#   3. Set run: true to enable, false to skip
+#   4. Add tags for selective execution (Smoke, Sanity, Regression, etc.)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─── US-101: Login Functionality ─────────────────────────────────────────────
+
+US-101.AC-1:
+  run: true
+  tags: ["Smoke", "Regression"]
+  storyId: "US-101"
+  feature: "Login Functionality"
+  title: "Successful login with valid credentials"
+  baseUrl: "https://the-internet.herokuapp.com"
+  pagePath: "/login"
+  username: "tomsmith"
+  password: "SuperSecretPassword!"
+  expectedUrl: "/secure"
+  expectedMessage: "You logged into a secure area!"
+
+US-101.AC-2:
+  run: true
+  tags: ["Regression"]
+  storyId: "US-101"
+  feature: "Login Functionality"
+  title: "Login fails with invalid password"
+  baseUrl: "https://the-internet.herokuapp.com"
+  pagePath: "/login"
+  username: "tomsmith"
+  password: "WrongPassword"
+  expectedErrorMessage: "Your password is invalid!"
+
+US-101.AC-3:
+  run: true
+  tags: ["Sanity", "Regression"]
+  storyId: "US-101"
+  feature: "Login Functionality"
+  title: "Login fails with empty credentials"
+  baseUrl: "https://the-internet.herokuapp.com"
+  pagePath: "/login"
+  username: ""
+  password: ""
+  expectedErrorMessage: "Your username is invalid!"

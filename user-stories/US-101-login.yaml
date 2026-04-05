@@ -1,0 +1,61 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 📖 USER STORY — US-101: Login Functionality
+# ═══════════════════════════════════════════════════════════════════════════════
+# Source: JIRA (BDD Given/When/Then format)
+# Data file: test-data/web-tests.yaml (key = US-101.<AC-ID>)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+storyId: "US-101"
+title: "Login Functionality"
+type: "Web"                          # Web | API — determines which data file to use
+description: >
+  As a registered user, I want to log in with my credentials,
+  so that I can access the secure area of the application.
+priority: "High"
+module: "Authentication"
+baseUrl: "https://the-internet.herokuapp.com"
+pagePath: "/login"
+
+# ─── Acceptance Criteria (BDD: Given / When / Then) ──────────────────────────
+acceptanceCriteria:
+
+  - id: "AC-1"
+    title: "Successful login with valid credentials"
+    tags: ["Smoke", "Regression"]
+    scenario:
+      given:
+        - "The user is on the login page"
+      when:
+        - "The user enters a valid username"
+        - "The user enters a valid password"
+        - "The user clicks the Login button"
+      then:
+        - "The user is redirected to the secure area"
+        - "A success flash message is displayed"
+
+  - id: "AC-2"
+    title: "Login fails with invalid password"
+    tags: ["Regression"]
+    scenario:
+      given:
+        - "The user is on the login page"
+      when:
+        - "The user enters a valid username"
+        - "The user enters an invalid password"
+        - "The user clicks the Login button"
+      then:
+        - "An error flash message is displayed"
+        - "The user remains on the login page"
+
+  - id: "AC-3"
+    title: "Login fails with empty credentials"
+    tags: ["Sanity", "Regression"]
+    scenario:
+      given:
+        - "The user is on the login page"
+      when:
+        - "The user leaves username and password empty"
+        - "The user clicks the Login button"
+      then:
+        - "An error flash message is displayed"
+        - "The user remains on the login page"

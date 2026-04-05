@@ -38,3 +38,9 @@ dist/
 
 # Playwright MCP tool logs (auto-generated, not needed in repo)
 .playwright-mcp/
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

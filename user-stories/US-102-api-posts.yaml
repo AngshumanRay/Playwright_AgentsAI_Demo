@@ -1,0 +1,58 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 📖 USER STORY — US-102: Blog Posts API
+# ═══════════════════════════════════════════════════════════════════════════════
+# Source: JIRA (BDD Given/When/Then format)
+# Data file: test-data/api-tests.yaml (key = US-102.<AC-ID>)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+storyId: "US-102"
+title: "Blog Posts API"
+type: "API"                          # Web | API — determines which data file to use
+description: >
+  As an API consumer, I want to retrieve and create blog posts via REST API,
+  so that the frontend can display and manage content.
+priority: "High"
+module: "Content Management"
+baseUrl: "https://jsonplaceholder.typicode.com"
+pagePath: "/posts"
+
+# ─── Acceptance Criteria (BDD: Given / When / Then) ──────────────────────────
+acceptanceCriteria:
+
+  - id: "AC-1"
+    title: "GET single post returns valid response"
+    tags: ["Smoke", "Regression"]
+    scenario:
+      given:
+        - "The API server is accessible"
+        - "A blog post with ID 1 exists"
+      when:
+        - "A GET request is sent to /posts/1"
+      then:
+        - "The response status is 200"
+        - "The response body contains id, userId, title, and body fields"
+
+  - id: "AC-2"
+    title: "POST creates a new blog post"
+    tags: ["Regression"]
+    scenario:
+      given:
+        - "The API server is accessible"
+      when:
+        - "A POST request is sent to /posts with title, body, and userId"
+      then:
+        - "The response status is 201"
+        - "The response body contains the submitted data with a new id"
+
+  - id: "AC-3"
+    title: "GET user profile returns nested fields"
+    tags: ["Sanity", "Regression"]
+    scenario:
+      given:
+        - "The API server is accessible"
+        - "A user with ID 1 exists"
+      when:
+        - "A GET request is sent to /users/1"
+      then:
+        - "The response status is 200"
+        - "The response body contains name, email, address, and company objects"

@@ -129,7 +129,11 @@ export default defineConfig({
     ['html', {
       outputFolder: 'playwright-report',  // Where to save the HTML report
       open: 'never',                      // Don't auto-open browser after tests
-                                          // Change to 'on-failure' to auto-open on failure
+    }],
+
+    // JSON report — used by `npm run report` to generate our custom AutoAgent report
+    ['json', {
+      outputFile: 'test-results/results.json',
     }],
   ],
 

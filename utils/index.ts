@@ -54,10 +54,6 @@ export { isEmailConfigured, waitForEmail, extractVerificationCode, extractLink }
 // API
 export { createApiClient, apiGet, apiPost, apiPut, apiDelete } from './api/api-helper';
 
-// Excel / Data Pool
-export { readExcelSheet, readExcelAllSheets, getExcelSheetNames, writeExcelResults } from './excel/excel-reader';
-export { DataPool }                       from './excel/data-pool';
-
 // Security / Encryption
 export { encrypt, decrypt, hashPassword, isEncryptionConfigured } from './security/crypto-helper';
 

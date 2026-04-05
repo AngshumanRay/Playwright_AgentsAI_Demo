@@ -1,90 +1,64 @@
 #!/usr/bin/env ts-node
 // =============================================================================
-// scripts/generate-from-stories.ts — AUTOMATED PIPELINE
+// scripts/generate-from-stories.ts — AGENT-DRIVEN TEST GENERATION PIPELINE
 // =============================================================================
-// PURPOSE:
-//   Reads User Story YAML files from user-stories/ and generates:
-//     1. TEST_CASES.md  — appends new test cases with traceability
-//     2. test-data/*.yaml — YAML test data for each user story
-//     3. manual-test-cases/*.md — standalone manual test case documents
-//     4. tests/*.test.ts  — Playwright test scripts
-//     5. pages/*Page.ts   — Page Object Model files
-//
-// USAGE:
-//   npm run generate                  → Full pipeline (all 5 outputs)
-//   npm run generate:tc               → Generate test cases + YAML + manual TCs only
-//   npm run generate:manual           → Generate manual test case documents only
-//   npm run generate:scripts          → Generate test scripts + page objects only
-//   npm run generate -- US-05-search  → Generate only for one story
+// COMMAND 1: npm run generate -- US-101-login
 //
 // FLOW:
-//   user-stories/US-05-search.yaml
-//       │
-//       ├──→ TEST_CASES.md                              (traceability matrix)
-//       ├──→ test-data/search-tests.yaml                (YAML test data)
-//       ├──→ manual-test-cases/US-05-*-test-cases.md    (manual test cases)
-//       ├──→ tests/search.test.ts                       (Playwright test script)
-//       └──→ pages/SearchPage.ts                        (Page Object class)
+//   1. Read User Story YAML (user-stories/<filename>.yaml)
+//   2. Parse BDD acceptance criteria (Given/When/Then)
+//   3. Generate Manual Test Cases (manual-test-cases/<storyId>-test-cases.md)
+//   4. Generate Playwright Test Script (tests/<storyId>.test.ts)
+//   5. Generate Page Object (pages/<StoryModule>Page.ts)  [Web only]
+//   6. Remind user to populate test data in web-tests.yaml or api-tests.yaml
+//
+// NOTE: Test data must be manually entered in test-data/web-tests.yaml or
+//       test-data/api-tests.yaml BEFORE running tests. The data file has
+//       two control fields per entry:
+//         run:  true/false  → enables/disables test execution
+//         tags: [Smoke, Sanity, Regression]  → for tag-based filtering
 // =============================================================================
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { parse as parseYaml } from 'yaml';
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  TYPES
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-interface TestStep {
-  action: string;
-  expected: string;
+interface BDDScenario {
+  given: string[];
+  when: string[];
+  then: string[];
 }
 
 interface AcceptanceCriterion {
-  id: string;          // PROJ-201
-  tcId: string;        // TC14
+  id: string;       // AC-1, AC-2, ...
   title: string;
-  type: string;        // positive | negative | boundary | smoke
-  priority: string;    // critical | high | medium | low
-  preconditions: string[];
-  steps: TestStep[];
-  testData: Record<string, unknown>;
-}
-
-interface StoryOutput {
-  dataFile: string;
-  testFile: string;
-  pageObject: string;
-  testGroup: string;
+  tags: string[];    // ["Smoke", "Regression"]
+  scenario: BDDScenario;
 }
 
 interface UserStory {
-  storyId: string;
+  storyId: string;   // US-101
   title: string;
+  type: 'Web' | 'API';
   description: string;
   priority: string;
   module: string;
   baseUrl: string;
   pagePath: string;
-  output: StoryOutput;
   acceptanceCriteria: AcceptanceCriterion[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PATHS
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Paths ───────────────────────────────────────────────────────────────────
 
-const ROOT         = path.resolve(__dirname, '..');
-const STORIES_DIR  = path.join(ROOT, 'user-stories');
-const TEST_DATA_DIR= path.join(ROOT, 'test-data');
-const TESTS_DIR    = path.join(ROOT, 'tests');
-const PAGES_DIR    = path.join(ROOT, 'pages');
-const TC_FILE      = path.join(ROOT, 'TEST_CASES.md');
-const MANUAL_TC_DIR= path.join(ROOT, 'manual-test-cases');
+const ROOT          = path.resolve(__dirname, '..');
+const STORIES_DIR   = path.join(ROOT, 'user-stories');
+const TESTS_DIR     = path.join(ROOT, 'tests');
+const PAGES_DIR     = path.join(ROOT, 'pages');
+const MANUAL_TC_DIR = path.join(ROOT, 'manual-test-cases');
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function banner(msg: string): void {
   console.log('\n' + '═'.repeat(70));
@@ -92,927 +66,326 @@ function banner(msg: string): void {
   console.log('═'.repeat(70));
 }
 
-function info(msg: string): void {
-  console.log(`  ✅ ${msg}`);
-}
-
-function warn(msg: string): void {
-  console.log(`  ⚠️  ${msg}`);
-}
-
-function loadStory(filePath: string): UserStory {
-  const raw = fs.readFileSync(filePath, 'utf-8');
-  return parseYaml(raw) as UserStory;
-}
+function ok(msg: string): void { console.log(`  ✅ ${msg}`); }
+function skip(msg: string): void { console.log(`  ⏭️  ${msg}`); }
 
 function ensureDir(dir: string): void {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 function toPascalCase(str: string): string {
-  return str
-    .replace(/[^a-zA-Z0-9 ]/g, '')
-    .split(' ')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join('');
+  return str.replace(/[^a-zA-Z0-9 ]/g, '').split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
 }
 
-function toCamelCase(str: string): string {
-  const pascal = toPascalCase(str);
-  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  GENERATOR 1: TEST DATA YAML
-// ─────────────────────────────────────────────────────────────────────────────
-
-function generateTestDataYaml(story: UserStory): string {
-  const lines: string[] = [];
-
-  lines.push(`# ╔${'═'.repeat(73)}╗`);
-  lines.push(`# ║  🔌 AUTO-GENERATED TEST DATA — ${story.output.dataFile.padEnd(40)}║`);
-  lines.push(`# ║  From User Story: ${story.storyId} — ${story.title.padEnd(34).slice(0, 34)}          ║`);
-  lines.push(`# ╠${'═'.repeat(73)}╣`);
-  lines.push(`# ║  Generated by: npm run generate                                        ║`);
-  lines.push(`# ║  Source: user-stories/${story.storyId.toLowerCase()}-*.yaml                              ║`);
-  lines.push(`# ║                                                                         ║`);
-  lines.push(`# ║  ⚠️  REVIEW & CUSTOMIZE: This is auto-generated. You should:             ║`);
-  lines.push(`# ║     • Verify test data values match your application                    ║`);
-  lines.push(`# ║     • Add encrypted passwords with \${ENC:...} if needed                 ║`);
-  lines.push(`# ║     • Add dataSets: arrays for parameterized tests                      ║`);
-  lines.push(`# ║     • Set run: no to skip any test case                                 ║`);
-  lines.push(`# ╚${'═'.repeat(73)}╝`);
-  lines.push('');
-  lines.push('');
-
-  for (const ac of story.acceptanceCriteria) {
-    lines.push(`# ─── ${ac.tcId}: ${ac.title}`);
-    lines.push(`${ac.id}:`);
-    lines.push(`  run: yes`);
-    lines.push(`  testCase: "${ac.tcId}: ${ac.title}"`);
-    lines.push(`  type: "${ac.type}"`);
-    lines.push(`  baseUrl: "${story.baseUrl}"`);
-    lines.push(`  pagePath: "${story.pagePath}"`);
-
-    // Write all test data fields
-    for (const [key, value] of Object.entries(ac.testData)) {
-      if (typeof value === 'string') {
-        lines.push(`  ${key}: "${value}"`);
-      } else if (typeof value === 'number' || typeof value === 'boolean') {
-        lines.push(`  ${key}: ${value}`);
-      } else if (Array.isArray(value)) {
-        lines.push(`  ${key}:`);
-        for (const item of value) {
-          lines.push(`    - "${item}"`);
-        }
-      }
-    }
-    lines.push('');
-  }
-
-  return lines.join('\n');
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  GENERATOR 2: TEST SCRIPT (.test.ts)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function generateTestScript(story: UserStory): string {
-  const po = story.output.pageObject;
-  const poVar = toCamelCase(po.replace(/Page$/, '')) + 'Page';
-  const lines: string[] = [];
-
-  lines.push(`// =============================================================================`);
-  lines.push(`// tests/${story.output.testFile} — AUTO-GENERATED TEST SUITE`);
-  lines.push(`// =============================================================================`);
-  lines.push(`// SOURCE USER STORY: ${story.storyId} — ${story.title}`);
-  lines.push(`// GENERATED BY: npm run generate`);
-  lines.push(`//`);
-  lines.push(`// ⚠️  REVIEW & CUSTOMIZE:`);
-  lines.push(`//   This file was auto-generated from the user story YAML.`);
-  lines.push(`//   You should review each test and:`);
-  lines.push(`//     1. Verify the page object methods match your application`);
-  lines.push(`//     2. Add additional assertions specific to your UI`);
-  lines.push(`//     3. Adjust selectors in the Page Object if needed`);
-  lines.push(`// =============================================================================`);
-  lines.push('');
-  lines.push(`import { test, expect } from '../utils/framework/xray-test-fixture';`);
-  lines.push(`import { ${po} } from '../pages/${po}';`);
-  lines.push(`import { enhancedLogger } from '../utils/helpers/enhanced-logger';`);
-  lines.push(`import { getTestData, getTestDataSets, isTestEnabled } from '../utils/helpers/test-data-loader';`);
-  lines.push('');
-  lines.push(`const DATA_FILE = '${story.output.dataFile}';`);
-  lines.push('');
-  lines.push(`// =============================================================================`);
-  lines.push(`// TEST GROUP: ${story.output.testGroup}`);
-  lines.push(`// =============================================================================`);
-  lines.push(`test.describe('${story.output.testGroup}', () => {`);
-  lines.push('');
-
-  for (const ac of story.acceptanceCriteria) {
-    lines.push(`  // ── ${ac.tcId}: ${ac.title} ──`);
-    lines.push(`  const ${varName(ac.id)}Enabled = isTestEnabled(DATA_FILE, '${ac.id}');`);
-    lines.push(`  const ${varName(ac.id)}Sets    = getTestDataSets(DATA_FILE, '${ac.id}');`);
-    lines.push('');
-    lines.push(`  for (const ds of ${varName(ac.id)}Sets) {`);
-    lines.push(`    test(`);
-    lines.push(`      \`${ac.tcId}: ${escapeTemplate(ac.title)} [\${ds.label}]\`,`);
-    lines.push(`      {`);
-    lines.push(`        annotation: { type: 'xray', description: '${ac.id}' },`);
-    lines.push(`      },`);
-    lines.push(`      async ({ page, xrayTestKey }) => {`);
-    lines.push(`        if (!${varName(ac.id)}Enabled) test.skip();`);
-    lines.push('');
-    lines.push(`        enhancedLogger.section(\`▶ Running Test: ${ac.tcId} [\${ds.label}] | XRAY: \${xrayTestKey}\`);`);
-    lines.push(`        enhancedLogger.info(\`📂 Test data loaded from \${DATA_FILE} for \${xrayTestKey} [\${ds.label}]\`, xrayTestKey);`);
-    lines.push('');
-    lines.push(`        const ${poVar} = new ${po}(page);`);
-    lines.push('');
-
-    // Generate steps from the user story
-    for (let i = 0; i < ac.steps.length; i++) {
-      const step = ac.steps[i]!;
-      const stepNum = i + 1;
-      lines.push(`        // Step ${stepNum}: ${step.action}`);
-      lines.push(`        enhancedLogger.step('Step ${stepNum}: ${escapeQuotes(step.action)}', xrayTestKey);`);
-
-      // Generate intelligent step code based on the action text
-      const code = generateStepCode(step, ac, story, poVar, stepNum);
-      for (const codeLine of code) {
-        lines.push(`        ${codeLine}`);
-      }
-      lines.push('');
-    }
-
-    lines.push(`        enhancedLogger.pass(\`${ac.tcId} passed [\${ds.label}]\`, xrayTestKey);`);
-    lines.push(`      }`);
-    lines.push(`    );`);
-    lines.push(`  }`);
-    lines.push('');
-  }
-
-  lines.push(`});`);
-  lines.push('');
-
-  return lines.join('\n');
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  STEP CODE GENERATOR — maps user story actions to Playwright code
-// ─────────────────────────────────────────────────────────────────────────────
-
-function generateStepCode(
-  step: TestStep,
-  ac: AcceptanceCriterion,
-  story: UserStory,
-  poVar: string,
-  stepNum: number,
-): string[] {
-  const action = step.action.toLowerCase();
-  const code: string[] = [];
-
-  // Helper: detect if "open" refers to a UI element (modal, dialog, dropdown) vs page navigation
-  const isOpenUI = action.includes('open') &&
-    (action.includes('modal') || action.includes('dialog') || action.includes('dropdown') ||
-     action.includes('panel') || action.includes('menu') || action.includes('search') ||
-     action.includes('popup') || action.includes('overlay'));
-
-  // ── CLICK patterns (check BEFORE navigate — "click to open" is a click, not a navigate) ──
-  if (action.includes('click') || action.includes('press') || action.includes('tap') || isOpenUI) {
-    const target = extractTarget(step.action);
-    code.push(`// TODO: Update selector for "${target}"`);
-    code.push(`await ${poVar}.performClick('${target}');`);
-    code.push(`enhancedLogger.info('✅ Clicked ${escapeQuotes(target)}', xrayTestKey);`);
-  }
-
-  // ── NAVIGATE patterns ──
-  else if (action.includes('navigate') || action.includes('go to') || action.includes('load') || (action.includes('open') && !action.includes('click'))) {
-    code.push(`await ${poVar}.navigateTo(ds.pagePath as string || '${story.pagePath}');`);
-    code.push(`enhancedLogger.info('✅ Page loaded', xrayTestKey);`);
-  }
-
-  // ── SUBMIT patterns (check BEFORE type — "submit search" is a submit, not a type) ──
-  else if (action.includes('submit')) {
-    // If there's also a type action ("submit search with empty input"), fill then submit
-    const dataKey = guessDataKey(step.action, ac.testData);
-    if (action.includes('empty') || action.includes('blank')) {
-      code.push(`// Submit with empty/blank input`);
-      code.push(`await ${poVar}.submitForm();`);
-      code.push(`enhancedLogger.info('✅ Form submitted with empty input', xrayTestKey);`);
-    } else {
-      code.push(`await ${poVar}.submitForm();`);
-      code.push(`enhancedLogger.info('✅ Form submitted', xrayTestKey);`);
-    }
-  }
-
-  // ── TYPE / ENTER / SEARCH patterns ──
-  else if (action.includes('type') || action.includes('enter') || action.includes('search') || action.includes('input')) {
-    const field = extractField(step.action);
-    const dataKey = guessDataKey(step.action, ac.testData);
-    code.push(`// TODO: Update selector for "${field}"`);
-    code.push(`await ${poVar}.fillField('${field}', ds.${dataKey} as string);`);
-    code.push(`enhancedLogger.info(\`✅ Entered "\${ds.${dataKey}}" into ${escapeQuotes(field)}\`, xrayTestKey);`);
-  }
-
-  // ── VERIFY / ASSERT / CHECK patterns ──
-  else if (action.includes('verify') || action.includes('assert') || action.includes('check') || action.includes('confirm') || action.includes('should')) {
-    if (action.includes('url')) {
-      const dataKey = findDataKey(ac.testData, ['expectedUrl', 'expectedUrlFragment', 'url']);
-      if (dataKey) {
-        code.push(`expect(page.url()).toContain(ds.${dataKey} as string);`);
-        code.push(`enhancedLogger.info(\`✅ URL contains "\${ds.${dataKey}}"\`, xrayTestKey);`);
-      }
-    } else if (action.includes('title')) {
-      const dataKey = findDataKey(ac.testData, ['expectedTitle', 'title']);
-      if (dataKey) {
-        code.push(`await expect(page).toHaveTitle(new RegExp(ds.${dataKey} as string));`);
-        code.push(`enhancedLogger.info(\`✅ Title matches "\${ds.${dataKey}}"\`, xrayTestKey);`);
-      }
-    } else if (action.includes('result') || action.includes('list') || action.includes('item') || action.includes('match')) {
-      const minKey = findDataKey(ac.testData, ['expectedMinResults', 'minResults', 'resultCount']);
-      if (minKey) {
-        code.push(`// TODO: Update the selector for search results`);
-        code.push(`const results = await ${poVar}.getResultCount();`);
-        code.push(`expect(results).toBeGreaterThanOrEqual(ds.${minKey} as number);`);
-        code.push(`enhancedLogger.info(\`✅ Found \${results} results (expected ≥ \${ds.${minKey}})\`, xrayTestKey);`);
-      } else {
-        code.push(`// TODO: Add verification logic for: "${step.action}"`);
-        code.push(`enhancedLogger.info('✅ Verified: ${escapeQuotes(step.expected)}', xrayTestKey);`);
-      }
-    } else if (action.includes('error') || action.includes('message') || action.includes('no result') || action.includes('prompt')) {
-      const msgKey = findDataKey(ac.testData, ['expectedNoResultsMessage', 'expectedErrorMessage', 'expectedMessage']);
-      if (msgKey) {
-        code.push(`// TODO: Update selector for message element`);
-        code.push(`const message = await ${poVar}.getMessage();`);
-        code.push(`expect(message).toContain(ds.${msgKey} as string);`);
-        code.push(`enhancedLogger.info(\`✅ Message: "\${message}"\`, xrayTestKey);`);
-      } else {
-        code.push(`// TODO: Add message verification logic`);
-        code.push(`enhancedLogger.info('✅ Verified: ${escapeQuotes(step.expected)}', xrayTestKey);`);
-      }
-    } else {
-      code.push(`// TODO: Add verification logic for: "${escapeQuotes(step.action)}"`);
-      code.push(`enhancedLogger.info('✅ Verified: ${escapeQuotes(step.expected)}', xrayTestKey);`);
-    }
-  }
-
-  // ── DEFAULT ──
-  else {
-    code.push(`// TODO: Implement step ${stepNum}: "${escapeQuotes(step.action)}"`);
-    code.push(`// Expected: "${escapeQuotes(step.expected)}"`);
-    code.push(`enhancedLogger.info('Step ${stepNum} executed', xrayTestKey);`);
-  }
-
-  return code;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  GENERATOR 3: PAGE OBJECT
-// ─────────────────────────────────────────────────────────────────────────────
-
-function generatePageObject(story: UserStory): string {
-  const po = story.output.pageObject;
-  const lines: string[] = [];
-
-  // Collect all unique actions across all ACs to determine methods needed
-  const allActions = new Set<string>();
-  for (const ac of story.acceptanceCriteria) {
-    for (const step of ac.steps) {
-      allActions.add(step.action.toLowerCase());
-    }
-  }
-
-  const hasNavigate = [...allActions].some(a => a.includes('navigate') || a.includes('open') || a.includes('go to'));
-  const hasClick    = [...allActions].some(a => a.includes('click'));
-  const hasType     = [...allActions].some(a => a.includes('type') || a.includes('enter') || a.includes('search'));
-  const hasSubmit   = [...allActions].some(a => a.includes('submit'));
-  const hasVerifyResults = [...allActions].some(a => a.includes('result') || a.includes('list') || a.includes('item'));
-  const hasVerifyMessage = [...allActions].some(a => a.includes('error') || a.includes('message') || a.includes('no result') || a.includes('prompt'));
-
-  lines.push(`// =============================================================================`);
-  lines.push(`// pages/${po}.ts — AUTO-GENERATED PAGE OBJECT`);
-  lines.push(`// =============================================================================`);
-  lines.push(`// SOURCE: ${story.storyId} — ${story.title}`);
-  lines.push(`// GENERATED BY: npm run generate`);
-  lines.push(`//`);
-  lines.push(`// ⚠️  REVIEW & CUSTOMIZE:`);
-  lines.push(`//   1. Update ALL selectors (marked with TODO) to match your application`);
-  lines.push(`//   2. Add any additional locators your page needs`);
-  lines.push(`//   3. Add helper methods specific to this page's functionality`);
-  lines.push(`// =============================================================================`);
-  lines.push('');
-  lines.push(`import { type Page, type Locator, expect } from '@playwright/test';`);
-  lines.push(`import { BasePage } from './BasePage';`);
-  lines.push(`import { enhancedLogger } from '../utils/helpers/enhanced-logger';`);
-  lines.push('');
-  lines.push(`export class ${po} extends BasePage {`);
-  lines.push('');
-
-  // ── Locators section ──
-  lines.push(`  // ════════════════════════════════════════════════════════════════════════`);
-  lines.push(`  // LOCATORS — TODO: Update these selectors to match your application`);
-  lines.push(`  // ════════════════════════════════════════════════════════════════════════`);
-  lines.push('');
-
-  if (hasClick) {
-    lines.push(`  // TODO: Add specific locators for clickable elements on this page`);
-    lines.push(`  // Example:`);
-    lines.push(`  // private get searchButton() { return this.page.getByRole('button', { name: 'Search' }); }`);
-    lines.push('');
-  }
-
-  if (hasType) {
-    lines.push(`  // TODO: Add locators for input fields`);
-    lines.push(`  // Example:`);
-    lines.push(`  // private get searchInput() { return this.page.getByPlaceholder('Search docs'); }`);
-    lines.push('');
-  }
-
-  if (hasVerifyResults) {
-    lines.push(`  // TODO: Add locator for results container`);
-    lines.push(`  // Example:`);
-    lines.push(`  // private get resultsList() { return this.page.locator('.search-results li'); }`);
-    lines.push('');
-  }
-
-  if (hasVerifyMessage) {
-    lines.push(`  // TODO: Add locator for message/notification element`);
-    lines.push(`  // Example:`);
-    lines.push(`  // private get messageElement() { return this.page.locator('.search-no-results'); }`);
-    lines.push('');
-  }
-
-  // ── Constructor ──
-  lines.push(`  // ════════════════════════════════════════════════════════════════════════`);
-  lines.push(`  // CONSTRUCTOR`);
-  lines.push(`  // ════════════════════════════════════════════════════════════════════════`);
-  lines.push(`  constructor(page: Page) {`);
-  lines.push(`    super(page);`);
-  lines.push(`  }`);
-  lines.push('');
-
-  // ── Methods ──
-  lines.push(`  // ════════════════════════════════════════════════════════════════════════`);
-  lines.push(`  // ACTIONS`);
-  lines.push(`  // ════════════════════════════════════════════════════════════════════════`);
-  lines.push('');
-
-  if (hasNavigate) {
-    lines.push(`  /**`);
-    lines.push(`   * Navigate to a specific path on the target site.`);
-    lines.push(`   */`);
-    lines.push(`  async navigateTo(pagePath: string): Promise<void> {`);
-    lines.push(`    enhancedLogger.section(\`📂 Navigating to \${pagePath}\`);`);
-    lines.push(`    await this.navigate(pagePath);`);
-    lines.push(`    await this.dismissCookieBanner();`);
-    lines.push(`  }`);
-    lines.push('');
-  }
-
-  if (hasClick) {
-    lines.push(`  /**`);
-    lines.push(`   * Click an element identified by a descriptive name.`);
-    lines.push(`   * TODO: Map element names to actual locators.`);
-    lines.push(`   */`);
-    lines.push(`  async performClick(elementName: string): Promise<void> {`);
-    lines.push(`    enhancedLogger.info(\`🖱️  Clicking: \${elementName}\`);`);
-    lines.push(`    // TODO: Replace with actual locator logic`);
-    lines.push(`    // Example: await this.searchButton.click();`);
-    lines.push(`    const el = this.page.getByRole('button', { name: new RegExp(elementName, 'i') });`);
-    lines.push(`    await el.click();`);
-    lines.push(`  }`);
-    lines.push('');
-  }
-
-  if (hasType) {
-    lines.push(`  /**`);
-    lines.push(`   * Fill a form field identified by a descriptive name.`);
-    lines.push(`   * TODO: Map field names to actual locators.`);
-    lines.push(`   */`);
-    lines.push(`  async fillField(fieldName: string, value: string): Promise<void> {`);
-    lines.push(`    enhancedLogger.info(\`✏️  Filling "\${fieldName}" with "\${value}"\`);`);
-    lines.push(`    // TODO: Replace with actual locator logic`);
-    lines.push(`    // Example: await this.searchInput.fill(value);`);
-    lines.push(`    const el = this.page.getByPlaceholder(new RegExp(fieldName, 'i'));`);
-    lines.push(`    await el.fill(value);`);
-    lines.push(`  }`);
-    lines.push('');
-  }
-
-  if (hasSubmit) {
-    lines.push(`  /**`);
-    lines.push(`   * Submit the current form.`);
-    lines.push(`   * TODO: Update to match your form's submit mechanism.`);
-    lines.push(`   */`);
-    lines.push(`  async submitForm(): Promise<void> {`);
-    lines.push(`    enhancedLogger.info('📤 Submitting form');`);
-    lines.push(`    // TODO: Replace with actual submit logic`);
-    lines.push(`    await this.page.getByRole('button', { name: /submit|search|go/i }).click();`);
-    lines.push(`  }`);
-    lines.push('');
-  }
-
-  if (hasVerifyResults) {
-    lines.push(`  /**`);
-    lines.push(`   * Get the count of search results / list items on the page.`);
-    lines.push(`   * TODO: Update the selector to match your results list.`);
-    lines.push(`   */`);
-    lines.push(`  async getResultCount(): Promise<number> {`);
-    lines.push(`    // TODO: Update selector`);
-    lines.push(`    const items = this.page.locator('.search-results li, [class*="result"] li, [class*="hit"]');`);
-    lines.push(`    const count = await items.count();`);
-    lines.push(`    enhancedLogger.info(\`📊 Found \${count} results\`);`);
-    lines.push(`    return count;`);
-    lines.push(`  }`);
-    lines.push('');
-  }
-
-  if (hasVerifyMessage) {
-    lines.push(`  /**`);
-    lines.push(`   * Get the text of a notification / message on the page.`);
-    lines.push(`   * TODO: Update the selector to match your message element.`);
-    lines.push(`   */`);
-    lines.push(`  async getMessage(): Promise<string> {`);
-    lines.push(`    // TODO: Update selector`);
-    lines.push(`    const el = this.page.locator('.message, .notification, [class*="no-result"], [class*="empty"]').first();`);
-    lines.push(`    const text = await el.textContent() || '';`);
-    lines.push(`    enhancedLogger.info(\`💬 Message: "\${text}"\`);`);
-    lines.push(`    return text.trim();`);
-    lines.push(`  }`);
-    lines.push('');
-  }
-
-  // Always add a getCurrentUrl helper
-  lines.push(`  /**`);
-  lines.push(`   * Get the current page URL.`);
-  lines.push(`   */`);
-  lines.push(`  getCurrentUrl(): string {`);
-  lines.push(`    return this.page.url();`);
-  lines.push(`  }`);
-
-  lines.push(`}`);
-  lines.push('');
-
-  return lines.join('\n');
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  GENERATOR 4: TEST_CASES.md SECTION
-// ─────────────────────────────────────────────────────────────────────────────
-
-function generateTestCasesMd(story: UserStory): string {
-  const lines: string[] = [];
-
-  lines.push('');
-  lines.push(`# ═══════════════════════════════════════════════════════════════════════════`);
-  lines.push(`# ${story.storyId}: ${story.title.toUpperCase()} (AUTO-GENERATED)`);
-  lines.push(`# ═══════════════════════════════════════════════════════════════════════════`);
-  lines.push('');
-  lines.push(`## 📖 User Story ${story.storyId}`);
-  lines.push('');
-  lines.push(`> ${story.description}`);
-  lines.push('');
-  lines.push(`**Priority:** ${story.priority}  `);
-  lines.push(`**Module:** ${story.module}  `);
-  lines.push(`**Target:** \`${story.baseUrl}\`  `);
-  lines.push('');
-  lines.push('**Acceptance Criteria:**');
-  for (let i = 0; i < story.acceptanceCriteria.length; i++) {
-    const ac = story.acceptanceCriteria[i]!;
-    lines.push(`- ✅ AC-${i + 1}: ${ac.title}`);
-  }
-  lines.push('');
-  lines.push('---');
-
-  for (const ac of story.acceptanceCriteria) {
-    lines.push('');
-    lines.push(`### ${ac.tcId}: ${ac.title}`);
-    lines.push('');
-    lines.push('| Field | Value |');
-    lines.push('|---|---|');
-    lines.push(`| **Test Case ID** | ${ac.tcId} |`);
-    lines.push(`| **XRAY Key** | ${ac.id} |`);
-    lines.push(`| **Priority** | ${ac.priority.charAt(0).toUpperCase() + ac.priority.slice(1)} |`);
-    lines.push(`| **Type** | ${ac.type.charAt(0).toUpperCase() + ac.type.slice(1)} |`);
-    lines.push('');
-    lines.push('**Preconditions:**');
-    for (const pre of ac.preconditions) {
-      lines.push(`- ${pre}`);
-    }
-    lines.push('');
-    lines.push('**Test Steps:**');
-    lines.push('');
-    lines.push('| Step | Action | Expected Result |');
-    lines.push('|---|---|---|');
-    for (let i = 0; i < ac.steps.length; i++) {
-      const step = ac.steps[i]!;
-      lines.push(`| ${i + 1} | ${step.action} | ${step.expected} |`);
-    }
-    lines.push('');
-    lines.push('**Test Data:**');
-    lines.push('');
-    lines.push('| Field | Value |');
-    lines.push('|---|---|');
-    for (const [key, value] of Object.entries(ac.testData)) {
-      lines.push(`| ${key} | \`${value}\` |`);
-    }
-    lines.push('');
-    lines.push('**Script Mapping:**');
-    lines.push('');
-    lines.push('| Attribute | Value |');
-    lines.push('|---|---|');
-    lines.push(`| Test File | \`tests/${story.output.testFile}\` |`);
-    lines.push(`| Page Object | \`${story.output.pageObject}\` |`);
-    lines.push(`| Data File | \`test-data/${story.output.dataFile}\` |`);
-    lines.push(`| XRAY Key | \`${ac.id}\` |`);
-    lines.push('');
-    lines.push('---');
-  }
-
-  return lines.join('\n');
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  GENERATOR 5: STANDALONE MANUAL TEST CASES (per user story)
-// ─────────────────────────────────────────────────────────────────────────────
-//  Generates a separate markdown file per user story in manual-test-cases/
-//  containing ONLY the manual QA test cases — no code, no automation details.
-//  Format mirrors what a manual tester would get in JIRA, Excel, or TestRail.
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Generator: Manual Test Cases (Markdown) ─────────────────────────────────
 
 function generateManualTestCases(story: UserStory): string {
   const lines: string[] = [];
   const now = new Date().toISOString().split('T')[0];
-  const totalTCs = story.acceptanceCriteria.length;
 
-  // ── HEADER ──
-  lines.push(`# ╔${'═'.repeat(73)}╗`);
-  lines.push(`# ║  📋 MANUAL TEST CASES — ${story.storyId}: ${story.title.padEnd(40).slice(0, 40)}    ║`);
-  lines.push(`# ╠${'═'.repeat(73)}╣`);
-  lines.push(`# ║  Generated: ${now}                                                    ║`);
-  lines.push(`# ║  Source: user-stories/${story.storyId.toLowerCase()}-*.yaml                              ║`);
-  lines.push(`# ║  Total Test Cases: ${String(totalTCs).padEnd(53)}║`);
-  lines.push(`# ║                                                                         ║`);
-  lines.push(`# ║  PURPOSE: This document contains manual test cases that can be           ║`);
-  lines.push(`# ║  executed by a QA tester WITHOUT any automation. Each test case           ║`);
-  lines.push(`# ║  includes preconditions, detailed steps, expected results, and            ║`);
-  lines.push(`# ║  test data — ready for manual execution or import into JIRA/TestRail.     ║`);
-  lines.push(`# ╚${'═'.repeat(73)}╝`);
+  lines.push(`# 📋 Manual Test Cases — ${story.storyId}: ${story.title}`);
+  lines.push(`> Generated: ${now} | Priority: ${story.priority} | Module: ${story.module}`);
+  lines.push('');
+  lines.push(`## 📖 User Story`);
+  lines.push(`> ${story.description.trim()}`);
+  lines.push('');
+  lines.push(`| Field | Value |`);
+  lines.push(`|-------|-------|`);
+  lines.push(`| Story ID | ${story.storyId} |`);
+  lines.push(`| Type | ${story.type} |`);
+  lines.push(`| Base URL | \`${story.baseUrl}\` |`);
+  lines.push(`| Page Path | \`${story.pagePath}\` |`);
   lines.push('');
   lines.push('---');
-  lines.push('');
 
-  // ── USER STORY SUMMARY ──
-  lines.push('## 📖 User Story');
-  lines.push('');
-  lines.push('| Field | Detail |');
-  lines.push('| --- | --- |');
-  lines.push(`| **Story ID** | ${story.storyId} |`);
-  lines.push(`| **Title** | ${story.title} |`);
-  lines.push(`| **Description** | ${story.description} |`);
-  lines.push(`| **Priority** | ${story.priority} |`);
-  lines.push(`| **Module** | ${story.module} |`);
-  lines.push(`| **Application URL** | \`${story.baseUrl}\` |`);
-  lines.push(`| **Starting Page** | \`${story.pagePath}\` |`);
-  lines.push('');
-
-  // ── ACCEPTANCE CRITERIA CHECKLIST ──
-  lines.push('## ✅ Acceptance Criteria');
-  lines.push('');
-  for (let i = 0; i < story.acceptanceCriteria.length; i++) {
-    const ac = story.acceptanceCriteria[i]!;
-    lines.push(`- [ ] **AC-${i + 1}** (${ac.id}): ${ac.title}`);
-  }
-  lines.push('');
-  lines.push('---');
-  lines.push('');
-
-  // ── TEST CASE SUMMARY TABLE ──
-  lines.push('## 📊 Test Case Summary');
-  lines.push('');
-  lines.push('| # | Test Case ID | XRAY Key | Title | Type | Priority | Status |');
-  lines.push('| --- | --- | --- | --- | --- | --- | --- |');
-  for (let i = 0; i < story.acceptanceCriteria.length; i++) {
-    const ac = story.acceptanceCriteria[i]!;
-    const typeLabel = ac.type.charAt(0).toUpperCase() + ac.type.slice(1);
-    const prioLabel = ac.priority.charAt(0).toUpperCase() + ac.priority.slice(1);
-    lines.push(`| ${i + 1} | ${ac.tcId} | ${ac.id} | ${ac.title} | ${typeLabel} | ${prioLabel} | ⬜ Not Run |`);
-  }
-  lines.push('');
-  lines.push('---');
-  lines.push('');
-
-  // ── INDIVIDUAL TEST CASES ──
-  for (let tcIdx = 0; tcIdx < story.acceptanceCriteria.length; tcIdx++) {
-    const ac = story.acceptanceCriteria[tcIdx]!;
-    const typeLabel = ac.type.charAt(0).toUpperCase() + ac.type.slice(1);
-    const prioLabel = ac.priority.charAt(0).toUpperCase() + ac.priority.slice(1);
-
-    lines.push(`## 🧪 ${ac.tcId}: ${ac.title}`);
+  for (const ac of story.acceptanceCriteria) {
+    lines.push('');
+    lines.push(`## 🧪 ${story.storyId}.${ac.id}: ${ac.title}`);
+    lines.push(`**Tags:** ${ac.tags.map(t => `\`${t}\``).join(', ')}`);
     lines.push('');
 
-    // ── Metadata table ──
-    lines.push('### Test Case Details');
+    // BDD Scenario
+    lines.push('### Scenario (BDD)');
     lines.push('');
-    lines.push('| Field | Value |');
-    lines.push('| --- | --- |');
-    lines.push(`| **Test Case ID** | ${ac.tcId} |`);
-    lines.push(`| **XRAY Key** | ${ac.id} |`);
-    lines.push(`| **User Story** | ${story.storyId} — ${story.title} |`);
-    lines.push(`| **Acceptance Criteria** | AC-${tcIdx + 1} |`);
-    lines.push(`| **Type** | ${typeLabel} |`);
-    lines.push(`| **Priority** | ${prioLabel} |`);
-    lines.push(`| **Module** | ${story.module} |`);
-    lines.push(`| **Created** | ${now} |`);
-    lines.push(`| **Execution Status** | ⬜ Not Run |`);
-    lines.push(`| **Assigned To** | — |`);
+    for (const g of ac.scenario.given) lines.push(`- **Given** ${g}`);
+    for (const w of ac.scenario.when)  lines.push(`- **When** ${w}`);
+    for (const t of ac.scenario.then)  lines.push(`- **Then** ${t}`);
     lines.push('');
 
-    // ── Preconditions ──
-    lines.push('### Preconditions');
-    lines.push('');
-    if (ac.preconditions && ac.preconditions.length > 0) {
-      for (let i = 0; i < ac.preconditions.length; i++) {
-        lines.push(`${i + 1}. ${ac.preconditions[i]}`);
-      }
-    } else {
-      lines.push('1. Application is accessible');
-    }
-    lines.push('');
-
-    // ── Test Steps ──
+    // Test Steps table
     lines.push('### Test Steps');
-    lines.push('');
-    lines.push('| Step # | Action (What to Do) | Expected Result (What Should Happen) | Pass/Fail |');
-    lines.push('| :---: | --- | --- | :---: |');
-    for (let i = 0; i < ac.steps.length; i++) {
-      const step = ac.steps[i]!;
-      lines.push(`| ${i + 1} | ${step.action} | ${step.expected} | ⬜ |`);
+    lines.push('| Step | Action | Expected Result | Pass/Fail |');
+    lines.push('|:----:|--------|-----------------|:---------:|');
+    let step = 1;
+    for (const w of ac.scenario.when) {
+      const expected = ac.scenario.then[step - 1] || '—';
+      lines.push(`| ${step++} | ${w} | ${expected} | ⬜ |`);
+    }
+    // Any remaining "then" items
+    for (let i = ac.scenario.when.length; i < ac.scenario.then.length; i++) {
+      lines.push(`| ${step++} | Verify | ${ac.scenario.then[i]} | ⬜ |`);
     }
     lines.push('');
 
-    // ── Test Data ──
-    lines.push('### Test Data');
-    lines.push('');
-    const dataEntries = Object.entries(ac.testData);
-    if (dataEntries.length > 0) {
-      lines.push('| Data Field | Value | Notes |');
-      lines.push('| --- | --- | --- |');
-      for (const [key, value] of dataEntries) {
-        const isExpected = key.startsWith('expected');
-        const note = isExpected ? 'Expected result / validation value' : 'Input data';
-        const displayVal = value === '' ? '*(empty string)*' : `\`${value}\``;
-        lines.push(`| ${key} | ${displayVal} | ${note} |`);
-      }
-    } else {
-      lines.push('*No specific test data required for this test case.*');
-    }
-    lines.push('');
-
-    // ── Result section ──
-    lines.push('### Execution Result');
-    lines.push('');
-    lines.push('| Field | Value |');
-    lines.push('| --- | --- |');
-    lines.push('| **Status** | ⬜ Not Run |');
-    lines.push('| **Executed By** | — |');
-    lines.push('| **Execution Date** | — |');
-    lines.push('| **Defect ID** | — |');
-    lines.push('| **Comments** | — |');
+    // Test Data reference
+    lines.push(`### Test Data`);
+    lines.push(`> Data key: \`${story.storyId}.${ac.id}\` in \`test-data/${story.type === 'API' ? 'api' : 'web'}-tests.yaml\``);
     lines.push('');
     lines.push('---');
-    lines.push('');
   }
-
-  // ── FOOTER ──
-  lines.push('## 📝 Execution Summary');
-  lines.push('');
-  lines.push('| Metric | Count |');
-  lines.push('| --- | --- |');
-  lines.push(`| Total Test Cases | ${totalTCs} |`);
-  lines.push('| Passed | — |');
-  lines.push('| Failed | — |');
-  lines.push('| Blocked | — |');
-  lines.push('| Not Run | — |');
-  lines.push('');
-  lines.push('| Field | Value |');
-  lines.push('| --- | --- |');
-  lines.push('| **Tested By** | — |');
-  lines.push('| **Test Date** | — |');
-  lines.push('| **Environment** | — |');
-  lines.push('| **Browser** | — |');
-  lines.push('| **Build / Version** | — |');
-  lines.push('| **Sign-Off** | — |');
-  lines.push('');
-  lines.push('---');
-  lines.push('');
-  lines.push(`> 📎 **Traceability**: This test case document was auto-generated from User Story \`${story.storyId}\` (\`user-stories/${story.storyId.toLowerCase()}-*.yaml\`).`);
-  lines.push(`> Automated test scripts are in \`tests/${story.output.testFile}\` with data from \`test-data/${story.output.dataFile}\`.`);
-  lines.push('');
 
   return lines.join('\n');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  STRING UTILITIES
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Generator: Web Test Script ──────────────────────────────────────────────
 
-function varName(projId: string): string {
-  // PROJ-201 → proj201
-  return projId.toLowerCase().replace(/-/g, '');
-}
+function generateWebTestScript(story: UserStory): string {
+  const pageClass = toPascalCase(story.module) + 'Page';
+  const lines: string[] = [];
 
-function escapeTemplate(str: string): string {
-  return str.replace(/`/g, '\\`').replace(/\$/g, '\\$');
-}
+  lines.push(`// =============================================================================`);
+  lines.push(`// tests/${story.storyId.toLowerCase()}.test.ts — ${story.title}`);
+  lines.push(`// =============================================================================`);
+  lines.push(`// Auto-generated from: user-stories/${story.storyId.toLowerCase()}-*.yaml`);
+  lines.push(`// Data source: test-data/web-tests.yaml`);
+  lines.push(`// =============================================================================`);
+  lines.push('');
+  lines.push(`import { test, expect } from '../utils/framework/xray-test-fixture';`);
+  lines.push(`import { ${pageClass} } from '../pages/${pageClass}';`);
+  lines.push(`import { enhancedLogger } from '../utils/helpers/enhanced-logger';`);
+  lines.push(`import { loadTestEntry } from '../utils/helpers/test-data-loader';`);
+  lines.push('');
+  lines.push(`const DATA_FILE = 'web-tests.yaml';`);
+  lines.push('');
+  lines.push(`test.describe('${story.storyId}: ${story.title}', () => {`);
 
-function escapeQuotes(str: string): string {
-  return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
-}
+  for (const ac of story.acceptanceCriteria) {
+    const key = `${story.storyId}.${ac.id}`;
+    lines.push('');
+    lines.push(`  // ── ${key}: ${ac.title} ──`);
+    lines.push(`  // Tags: ${ac.tags.join(', ')}`);
+    lines.push(`  // Given: ${ac.scenario.given.join(' AND ')}`);
+    lines.push(`  // When:  ${ac.scenario.when.join(' → ')}`);
+    lines.push(`  // Then:  ${ac.scenario.then.join(' AND ')}`);
+    lines.push(`  test('${key}: ${ac.title.replace(/'/g, "\\'")}',`);
+    lines.push(`    { annotation: { type: 'xray', description: '${key}' } },`);
+    lines.push(`    async ({ page, xrayTestKey }) => {`);
+    lines.push(`      // Load test data & check run flag`);
+    lines.push(`      const td = loadTestEntry(DATA_FILE, '${key}');`);
+    lines.push(`      if (!td.run) test.skip();`);
+    lines.push('');
+    lines.push(`      enhancedLogger.section(\`▶ Running: ${key} | \${td.title}\`);`);
+    lines.push(`      const pageObj = new ${pageClass}(page);`);
+    lines.push('');
 
-function extractTarget(action: string): string {
-  // "Click the search icon / press Ctrl+K to open search" → "search icon"
-  const match = action.match(/click\s+(?:the\s+)?(.+?)(?:\s+(?:to|and|button|link|tab|\/|—|–))/i);
-  if (match?.[1]) return match[1].trim();
-  const match2 = action.match(/click\s+(?:the\s+|on\s+)?(.+)/i);
-  if (match2?.[1]) return match2[1].trim();
-  // "Open the search modal" → "search modal"
-  const match3 = action.match(/open\s+(?:the\s+)?(.+)/i);
-  if (match3?.[1]) return match3[1].trim();
-  // "Press Ctrl+K to open search" → "Ctrl+K"
-  const match4 = action.match(/press\s+(.+?)(?:\s+to\b)/i);
-  if (match4?.[1]) return match4[1].trim();
-  return 'element';
-}
-
-function extractField(action: string): string {
-  // "Type 'locator' into the search field" → "search field"
-  const match = action.match(/(?:into|in)\s+(?:the\s+)?(.+?)(?:\s*field)?$/i);
-  if (match?.[1]) return match[1].trim();
-  return 'input';
-}
-
-function guessDataKey(action: string, testData: Record<string, unknown>): string {
-  const keys = Object.keys(testData);
-  // If action contains "search", try searchKeyword, keyword, query, etc.
-  for (const k of keys) {
-    if (action.toLowerCase().includes(k.toLowerCase().replace(/expected|min|max/gi, ''))) {
-      return k;
+    // Generate step code from BDD scenario
+    let stepNum = 1;
+    for (const g of ac.scenario.given) {
+      lines.push(`      // Given: ${g}`);
     }
-  }
-  // Try common patterns
-  if (action.toLowerCase().includes('search')) {
-    for (const k of keys) {
-      if (k.toLowerCase().includes('keyword') || k.toLowerCase().includes('query') || k.toLowerCase().includes('search')) {
-        return k;
-      }
+    for (const w of ac.scenario.when) {
+      lines.push(`      // Step ${stepNum}: ${w}`);
+      lines.push(`      enhancedLogger.step('Step ${stepNum}: ${w.replace(/'/g, "\\'")}', xrayTestKey);`);
+      lines.push(`      // TODO: Implement step — ${w}`);
+      stepNum++;
     }
+    lines.push('');
+    for (const t of ac.scenario.then) {
+      lines.push(`      // Then: ${t}`);
+      lines.push(`      // TODO: Add assertion — ${t}`);
+    }
+    lines.push('');
+    lines.push(`      enhancedLogger.pass('${key} passed', xrayTestKey);`);
+    lines.push(`    }`);
+    lines.push(`  );`);
   }
-  // Return first non-expected key
-  for (const k of keys) {
-    if (!k.startsWith('expected')) return k;
-  }
-  return keys[0] || 'value';
+
+  lines.push(`});`);
+  lines.push('');
+  return lines.join('\n');
 }
 
-function findDataKey(testData: Record<string, unknown>, candidates: string[]): string | null {
-  for (const c of candidates) {
-    if (c in testData) return c;
+// ─── Generator: API Test Script ──────────────────────────────────────────────
+
+function generateApiTestScript(story: UserStory): string {
+  const lines: string[] = [];
+
+  lines.push(`// =============================================================================`);
+  lines.push(`// tests/${story.storyId.toLowerCase()}.test.ts — ${story.title}`);
+  lines.push(`// =============================================================================`);
+  lines.push(`// Auto-generated from: user-stories/${story.storyId.toLowerCase()}-*.yaml`);
+  lines.push(`// Data source: test-data/api-tests.yaml`);
+  lines.push(`// =============================================================================`);
+  lines.push('');
+  lines.push(`import { test, expect } from '../utils/framework/xray-test-fixture';`);
+  lines.push(`import { enhancedLogger } from '../utils/helpers/enhanced-logger';`);
+  lines.push(`import { loadTestEntry } from '../utils/helpers/test-data-loader';`);
+  lines.push('');
+  lines.push(`const DATA_FILE = 'api-tests.yaml';`);
+  lines.push('');
+  lines.push(`test.describe('${story.storyId}: ${story.title}', () => {`);
+
+  for (const ac of story.acceptanceCriteria) {
+    const key = `${story.storyId}.${ac.id}`;
+    lines.push('');
+    lines.push(`  // ── ${key}: ${ac.title} ──`);
+    lines.push(`  // Tags: ${ac.tags.join(', ')}`);
+    lines.push(`  test('${key}: ${ac.title.replace(/'/g, "\\'")}',`);
+    lines.push(`    { annotation: { type: 'xray', description: '${key}' } },`);
+    lines.push(`    async ({ request, xrayTestKey }) => {`);
+    lines.push(`      const td = loadTestEntry(DATA_FILE, '${key}');`);
+    lines.push(`      if (!td.run) test.skip();`);
+    lines.push('');
+    lines.push(`      enhancedLogger.section(\`▶ Running: ${key} | \${td.title}\`);`);
+    lines.push('');
+
+    // Generate API step code
+    let stepNum = 1;
+    for (const w of ac.scenario.when) {
+      lines.push(`      // Step ${stepNum}: ${w}`);
+      lines.push(`      enhancedLogger.step('Step ${stepNum}: ${w.replace(/'/g, "\\'")}', xrayTestKey);`);
+      lines.push(`      // TODO: Implement API call — ${w}`);
+      stepNum++;
+    }
+    lines.push('');
+    for (const t of ac.scenario.then) {
+      lines.push(`      // Then: ${t}`);
+      lines.push(`      // TODO: Add assertion — ${t}`);
+    }
+    lines.push('');
+    lines.push(`      enhancedLogger.pass('${key} passed', xrayTestKey);`);
+    lines.push(`    }`);
+    lines.push(`  );`);
   }
-  return null;
+
+  lines.push(`});`);
+  lines.push('');
+  return lines.join('\n');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MAIN
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Generator: Page Object (Web only) ──────────────────────────────────────
+
+function generatePageObject(story: UserStory): string {
+  const className = toPascalCase(story.module) + 'Page';
+  const lines: string[] = [];
+
+  lines.push(`// =============================================================================`);
+  lines.push(`// pages/${className}.ts — Page Object for ${story.title}`);
+  lines.push(`// =============================================================================`);
+  lines.push(`// Auto-generated from: user-stories/${story.storyId.toLowerCase()}-*.yaml`);
+  lines.push(`// TODO: Update selectors to match your application`);
+  lines.push(`// =============================================================================`);
+  lines.push('');
+  lines.push(`import { type Page, expect } from '@playwright/test';`);
+  lines.push(`import { BasePage } from './BasePage';`);
+  lines.push('');
+  lines.push(`export class ${className} extends BasePage {`);
+  lines.push('');
+  lines.push(`  constructor(page: Page) {`);
+  lines.push(`    super(page);`);
+  lines.push(`  }`);
+  lines.push('');
+  lines.push(`  // TODO: Add locators and methods specific to ${story.module}`);
+  lines.push(`}`);
+  lines.push('');
+  return lines.join('\n');
+}
+
+// ─── Main Pipeline ──────────────────────────────────────────────────────────
 
 function main(): void {
-  const args = process.argv.slice(2);
-  const mode = args[0]; // 'tc', 'scripts', or undefined (full)
-  const filterStory = args[1]; // Optional: only generate for one story file
+  const storyFilter = process.argv[2]; // e.g., "US-101-login"
 
-  banner('🚀 Playwright AutoAgent — Story-to-Test Generator');
+  banner('🚀 Playwright AgentsAI Demo — Generate from User Story');
 
-  // 1. Find all user story files
-  ensureDir(STORIES_DIR);
-  const storyFiles = fs.readdirSync(STORIES_DIR)
-    .filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
-    .filter(f => !filterStory || f.includes(filterStory));
-
-  if (storyFiles.length === 0) {
+  if (!storyFilter) {
     console.log('');
-    console.log('  ❌ No user story files found in user-stories/');
-    console.log('  📝 Create a YAML file in user-stories/ (see user-stories/US-05-search.yaml for template)');
+    console.log('  Usage: npm run generate -- <story-filename>');
+    console.log('  Example: npm run generate -- US-101-login');
+    console.log('');
+    console.log('  Available stories in user-stories/:');
+    const files = fs.readdirSync(STORIES_DIR).filter(f => f.endsWith('.yaml'));
+    files.forEach(f => console.log(`    • ${f.replace('.yaml', '')}`));
     console.log('');
     process.exit(1);
   }
 
-  console.log(`\n  📂 Found ${storyFiles.length} user story file(s):`);
-  for (const f of storyFiles) {
-    console.log(`     • ${f}`);
+  // Find the story file
+  const storyFile = fs.readdirSync(STORIES_DIR)
+    .find(f => f.includes(storyFilter) && f.endsWith('.yaml'));
+
+  if (!storyFile) {
+    console.error(`  ❌ No story file found matching: ${storyFilter}`);
+    process.exit(1);
   }
 
-  const generatedFiles: string[] = [];
+  // Parse the story
+  const raw = fs.readFileSync(path.join(STORIES_DIR, storyFile), 'utf-8');
+  const story = parseYaml(raw) as UserStory;
 
-  for (const storyFile of storyFiles) {
-    const story = loadStory(path.join(STORIES_DIR, storyFile));
-    banner(`📖 Processing: ${story.storyId} — ${story.title}`);
+  banner(`📖 ${story.storyId}: ${story.title} (${story.type})`);
+  console.log(`  Priority: ${story.priority} | Module: ${story.module}`);
+  console.log(`  Acceptance Criteria: ${story.acceptanceCriteria.length}`);
 
-    // ── GENERATE TEST DATA YAML ──
-    if (!mode || mode === 'tc') {
-      ensureDir(TEST_DATA_DIR);
-      const yamlContent = generateTestDataYaml(story);
-      const yamlPath = path.join(TEST_DATA_DIR, story.output.dataFile);
+  const dataFile = story.type === 'API' ? 'api-tests.yaml' : 'web-tests.yaml';
 
-      if (fs.existsSync(yamlPath)) {
-        warn(`${story.output.dataFile} already exists — skipping (delete to regenerate)`);
-      } else {
-        fs.writeFileSync(yamlPath, yamlContent, 'utf-8');
-        info(`Created: test-data/${story.output.dataFile}`);
-        generatedFiles.push(`test-data/${story.output.dataFile}`);
-      }
-    }
-
-    // ── GENERATE TEST_CASES.MD SECTION ──
-    if (!mode || mode === 'tc') {
-      const mdContent = generateTestCasesMd(story);
-      const existingMd = fs.existsSync(TC_FILE) ? fs.readFileSync(TC_FILE, 'utf-8') : '';
-      const marker = `# ${story.storyId}: ${story.title.toUpperCase()}`;
-
-      if (existingMd.includes(marker)) {
-        warn(`TEST_CASES.md already has section for ${story.storyId} — skipping`);
-      } else {
-        fs.appendFileSync(TC_FILE, mdContent, 'utf-8');
-        info(`Appended to TEST_CASES.md: ${story.storyId} section`);
-        generatedFiles.push('TEST_CASES.md (appended)');
-      }
-    }
-
-    // ── GENERATE STANDALONE MANUAL TEST CASES ──
-    if (!mode || mode === 'tc' || mode === 'manual') {
-      ensureDir(MANUAL_TC_DIR);
-      const manualTcFilename = `${story.storyId}-${story.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}-test-cases.md`;
-      const manualTcPath = path.join(MANUAL_TC_DIR, manualTcFilename);
-
-      if (fs.existsSync(manualTcPath)) {
-        warn(`${manualTcFilename} already exists — skipping (delete to regenerate)`);
-      } else {
-        const manualContent = generateManualTestCases(story);
-        fs.writeFileSync(manualTcPath, manualContent, 'utf-8');
-        info(`Created: manual-test-cases/${manualTcFilename}`);
-        generatedFiles.push(`manual-test-cases/${manualTcFilename}`);
-      }
-    }
-
-    // ── GENERATE TEST SCRIPT ──
-    if (!mode || mode === 'scripts') {
-      ensureDir(TESTS_DIR);
-      const scriptContent = generateTestScript(story);
-      const scriptPath = path.join(TESTS_DIR, story.output.testFile);
-
-      if (fs.existsSync(scriptPath)) {
-        warn(`${story.output.testFile} already exists — skipping (delete to regenerate)`);
-      } else {
-        fs.writeFileSync(scriptPath, scriptContent, 'utf-8');
-        info(`Created: tests/${story.output.testFile}`);
-        generatedFiles.push(`tests/${story.output.testFile}`);
-      }
-    }
-
-    // ── GENERATE PAGE OBJECT ──
-    if (!mode || mode === 'scripts') {
-      ensureDir(PAGES_DIR);
-      const poContent = generatePageObject(story);
-      const poPath = path.join(PAGES_DIR, `${story.output.pageObject}.ts`);
-
-      if (fs.existsSync(poPath)) {
-        warn(`${story.output.pageObject}.ts already exists — skipping (delete to regenerate)`);
-      } else {
-        fs.writeFileSync(poPath, poContent, 'utf-8');
-        info(`Created: pages/${story.output.pageObject}.ts`);
-        generatedFiles.push(`pages/${story.output.pageObject}.ts`);
-      }
-    }
-  }
-
-  // ── SUMMARY ──
-  banner('✅ Generation Complete');
-  if (generatedFiles.length === 0) {
-    console.log('  No new files generated (all already exist).');
-    console.log('  Delete existing generated files to regenerate them.');
+  // ── Step 1: Generate Manual Test Cases ──
+  banner('📝 Step 1: Generating Manual Test Cases');
+  ensureDir(MANUAL_TC_DIR);
+  const tcFilename = `${story.storyId}-test-cases.md`;
+  const tcPath = path.join(MANUAL_TC_DIR, tcFilename);
+  if (fs.existsSync(tcPath)) {
+    skip(`${tcFilename} already exists (delete to regenerate)`);
   } else {
-    console.log(`  Generated ${generatedFiles.length} file(s):`);
-    for (const f of generatedFiles) {
-      console.log(`    📄 ${f}`);
+    fs.writeFileSync(tcPath, generateManualTestCases(story), 'utf-8');
+    ok(`Created: manual-test-cases/${tcFilename}`);
+  }
+
+  // ── Step 2: Generate Test Script ──
+  banner('🧪 Step 2: Generating Test Script');
+  ensureDir(TESTS_DIR);
+  const testFilename = `${story.storyId.toLowerCase()}.test.ts`;
+  const testPath = path.join(TESTS_DIR, testFilename);
+  if (fs.existsSync(testPath)) {
+    skip(`${testFilename} already exists (delete to regenerate)`);
+  } else {
+    const script = story.type === 'API'
+      ? generateApiTestScript(story)
+      : generateWebTestScript(story);
+    fs.writeFileSync(testPath, script, 'utf-8');
+    ok(`Created: tests/${testFilename}`);
+  }
+
+  // ── Step 3: Generate Page Object (Web only) ──
+  if (story.type === 'Web') {
+    banner('📄 Step 3: Generating Page Object');
+    ensureDir(PAGES_DIR);
+    const poFilename = `${toPascalCase(story.module)}Page.ts`;
+    const poPath = path.join(PAGES_DIR, poFilename);
+    if (fs.existsSync(poPath)) {
+      skip(`${poFilename} already exists (delete to regenerate)`);
+    } else {
+      fs.writeFileSync(poPath, generatePageObject(story), 'utf-8');
+      ok(`Created: pages/${poFilename}`);
     }
+  }
+
+  // ── Summary ──
+  banner('✅ Generation Complete');
+  console.log(`  📋 Manual test cases → manual-test-cases/${tcFilename}`);
+  console.log(`  🧪 Test script       → tests/${testFilename}`);
+  if (story.type === 'Web') {
+    console.log(`  📄 Page object       → pages/${toPascalCase(story.module)}Page.ts`);
   }
   console.log('');
-  console.log('  📋 NEXT STEPS:');
-  console.log('     1. Review generated files and customize TODO items');
-  console.log('     2. Update selectors in page objects to match your application');
-  console.log('     3. Run:  npm test');
+  console.log('  ⚡ NEXT STEPS:');
+  console.log(`  1. Add/verify test data in test-data/${dataFile}`);
+  console.log(`     Keys: ${story.acceptanceCriteria.map(ac => `${story.storyId}.${ac.id}`).join(', ')}`);
+  console.log(`  2. Set run: true/false and tags for each entry`);
+  console.log(`  3. Implement TODO items in the generated test script`);
+  console.log(`  4. Run tests:   npx playwright test tests/${testFilename}`);
+  console.log(`  5. Run report:  npm run report`);
   console.log('');
 }
 

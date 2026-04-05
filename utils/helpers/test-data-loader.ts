@@ -323,6 +323,57 @@ export function getTestDataKeys(fileName: string): string[] {
 }
 
 /**
+ * Load a single test entry by key from a YAML data file.
+ *
+ * This is the PRIMARY function used by generated test scripts.
+ * It works with the new US-XXX.AC-Y key format.
+ *
+ * @param fileName  Name of the YAML file (e.g., 'web-tests.yaml')
+ * @param key       The test entry key (e.g., 'US-101.AC-1')
+ * @returns         The TestDataEntry for that key
+ *
+ * @example
+ *   const td = loadTestEntry('web-tests.yaml', 'US-101.AC-1');
+ *   if (!td.run) test.skip();
+ *   console.log(td.title);    // "Successful login with valid credentials"
+ *   console.log(td.username); // "tomsmith"
+ */
+export function loadTestEntry(fileName: string, key: string): TestDataEntry {
+  return getTestData(fileName, key);
+}
+
+/**
+ * Get all entries that match a specific tag from a YAML data file.
+ *
+ * @param fileName  Name of the YAML file
+ * @param tag       The tag to filter by (e.g., 'Smoke', 'Regression')
+ * @returns         Array of [key, TestDataEntry] tuples matching the tag
+ *
+ * @example
+ *   const smokeTests = getEntriesByTag('web-tests.yaml', 'Smoke');
+ *   // Returns: [['US-101.AC-1', { run: true, tags: ['Smoke', 'Regression'], ... }]]
+ */
+export function getEntriesByTag(fileName: string, tag: string): [string, TestDataEntry][] {
+  const allData = loadTestDataFile(fileName);
+  return Object.entries(allData).filter(([_key, entry]) => {
+    const tags = (entry as any).tags;
+    return Array.isArray(tags) && tags.includes(tag);
+  });
+}
+
+/**
+ * Get all entries that belong to a specific user story.
+ *
+ * @param fileName  Name of the YAML file
+ * @param storyId   The story ID prefix (e.g., 'US-101')
+ * @returns         Array of [key, TestDataEntry] tuples for that story
+ */
+export function getEntriesByStory(fileName: string, storyId: string): [string, TestDataEntry][] {
+  const allData = loadTestDataFile(fileName);
+  return Object.entries(allData).filter(([key]) => key.startsWith(storyId + '.'));
+}
+
+/**
  * Clear the internal file cache.
  * Call this if you modify YAML files at runtime and need a fresh read.
  */
