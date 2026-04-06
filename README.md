@@ -21,11 +21,13 @@
 │   └── generate-report.ts         # Command 2: Beautiful Report
 ├── utils/                 # Framework utilities
 │   ├── framework/         # Test fixtures, global setup/teardown
-│   ├── helpers/           # Logger, data loader, screenshots
+│   ├── helpers/           # Logger, data loader, screenshots, screencast
 │   ├── reporting/         # HTML report generator
 │   ├── security/          # AES-256 encryption
 │   ├── api/               # API helpers
 │   └── jira-xray/         # JIRA XRAY integration
+├── test-results/
+│   └── screencasts/       # 🎬 Screencast .webm recordings (Playwright 1.59)
 ├── reports/               # Generated HTML reports
 ├── logs/                  # Test run logs
 └── playwright.config.ts   # Playwright configuration
@@ -70,8 +72,8 @@ Produces a stunning single-file HTML report with:
    (set run: true/false and tags: [Smoke, Regression])
 3. npm run generate -- <story-filename>    ← Generates everything
 4. Implement test logic (fill in TODOs)    ← Or use AI agent
-5. npx playwright test                     ← Run tests
-6. npm run report                          ← Beautiful report
+5. npm run test:report                     ← Run tests + generate report
+   (or separately: npx playwright test → npm run report)
 ```
 
 ---
@@ -111,7 +113,8 @@ US-101.AC-1:
 | Command | Description |
 |---------|-------------|
 | `npm run generate -- <story>` | Generate tests from user story |
-| `npm run report` | Generate beautiful HTML report |
+| `npm run test:report` | Run all tests + generate HTML report |
+| `npm run report` | Generate beautiful HTML report (standalone) |
 | `npm test` | Run all Playwright tests |
 | `npm run test:headed` | Run tests in visible browser |
 | `npm run test:debug` | Run tests in debug mode |
@@ -132,6 +135,34 @@ US-101.AC-1:
 - **Page Object Model**: BasePage + generated page objects
 - **Logging**: Winston with daily rotating files
 - **Screenshots**: Auto-capture on failure
+- **🎬 Screencast** (Playwright 1.59): Automatic video recording with action annotations, chapter cards, agentic AI overlays, and result banners — creating "agentic video receipts" for every test
+
+---
+
+## 🎬 Screencast — Agentic Video Receipts (Playwright 1.59)
+
+Every UI test is automatically recorded as a `.webm` video with rich visual annotations:
+
+| Feature | Description |
+|---------|-------------|
+| 🎥 Video Recording | Browser screen recorded via `page.screencast.start/stop` |
+| 🏷️ Action Annotations | Every click, fill, navigate labeled on-screen |
+| 📖 Chapter Cards | Title cards with blur backdrop at test start and key steps |
+| 🤖 Agentic AI Overlay | Branded badge: test name, environment, timestamp |
+| ✅/❌ Result Cards | Green PASS / Red FAIL banner at test completion |
+| 📸 Real-Time Frames | `onFrame` callback delivers JPEG frames (extensible for AI vision) |
+
+### .env Configuration
+
+```dotenv
+SCREENCAST_ENABLED=true           # Master toggle (default: true)
+SCREENCAST_SHOW_ACTIONS=true      # Action labels on video
+SCREENCAST_SHOW_CHAPTERS=true     # Chapter title cards
+SCREENCAST_QUALITY=80             # JPEG quality 0–100
+SCREENCAST_SIZE=1280x720          # Video resolution
+```
+
+Recordings are saved to `test-results/screencasts/` — zero test code changes needed.
 
 ---
 

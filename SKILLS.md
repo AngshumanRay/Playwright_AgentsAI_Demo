@@ -295,6 +295,14 @@ ELSE
 - Call `enhancedLogger.pass()` on success
 - Call `enhancedLogger.fail()` on assertion failure (auto-done)
 
+### With Screencast (Playwright 1.59)
+- Auto-integrated via `xray-test-fixture.ts` — no manual calls needed
+- Recordings saved to `test-results/screencasts/*.webm`
+- Uses `ScreencastHelper` from `utils/helpers/screencast-helper.ts`
+- Action annotations, chapter cards, overlays, result cards — all automatic
+- Toggle via `.env`: `SCREENCAST_ENABLED=true/false`
+- For manual use in custom tests: `import { createScreencastHelper } from '../utils'`
+
 ### With Page Objects
 - Extend `BasePage` for all page objects
 - Define locators as `this.page.locator(selector)`
@@ -311,6 +319,7 @@ ELSE
 3. **Test Fixture:** `utils/framework/xray-test-fixture.ts` (how tests are wrapped)
 4. **Data Loader:** `utils/helpers/test-data-loader.ts` (how data is loaded)
 5. **Base Page:** `pages/BasePage.ts` (all pages inherit from this)
+6. **Screencast:** `utils/helpers/screencast-helper.ts` (Playwright 1.59 video recording)
 
 ### Understanding Test Execution
 1. `playwright.config.ts` defines test runner settings
@@ -378,6 +387,7 @@ npm run clean
 
 ---
 
-**Version:** 1.0  
-**Last Updated:** April 5, 2026  
-**Framework:** Playwright AgentsAI Demo
+**Version:** 1.1  
+**Last Updated:** April 6, 2026  
+**Framework:** Playwright AgentsAI Demo  
+**Playwright:** 1.59.1 (with Screencast API)
