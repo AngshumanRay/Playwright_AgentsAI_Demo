@@ -67,6 +67,17 @@ The agent can autonomously perform the following tasks:
 - Generate accessibility violation reports
 - Track performance bottlenecks
 
+### 7. **🎬 Screencast — Agentic Video Receipts (Playwright 1.59)**
+- **Automatic recording**: Every UI test is recorded as a `.webm` video
+- **Action annotations**: Visual labels for every click, fill, navigate action
+- **Chapter cards**: Title cards with blur backdrop at test start and key steps
+- **Custom overlays**: Agentic AI badge showing test name, environment, timestamp
+- **Result cards**: Green ✅ PASS / Red ❌ FAIL banner at test completion
+- **Real-time frames**: `onFrame` callback delivers JPEG frames for AI vision or streaming
+- **Visual evidence**: Complete video proof of autonomous AI test execution
+- **Configurable**: Toggle on/off via `.env` (`SCREENCAST_ENABLED`, `SCREENCAST_SHOW_ACTIONS`, etc.)
+- **Auto-integrated**: Recordings start/stop automatically via xray-test-fixture — no test code changes needed
+
 ---
 
 ## 🔄 Agent Workflows

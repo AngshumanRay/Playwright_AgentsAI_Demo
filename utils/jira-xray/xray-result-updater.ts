@@ -73,6 +73,9 @@ export interface TestResultPayload {
   // Path to the screenshot file on disk (e.g., "/tmp/test-results/screenshot.png")
   screenshotPath?: string;
 
+  // Path to the screencast recording file on disk (Playwright 1.59 .webm video)
+  screencastPath?: string;
+
   // Any additional log text to attach (e.g., console output)
   logText?: string;
 

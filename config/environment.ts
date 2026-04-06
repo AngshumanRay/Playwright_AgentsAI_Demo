@@ -268,6 +268,37 @@ export const config = {
   },
 
   // --------------------------------------------------------------------------
+  // SCREENCAST (Playwright 1.59 — Video Recording with Annotations)
+  // --------------------------------------------------------------------------
+  // Screencast records the browser screen as a .webm video file with rich
+  // visual annotations: action labels, chapter title cards, and custom overlays.
+  // This creates "agentic video receipts" — complete visual evidence of every
+  // test execution performed by the AI agent.
+  //
+  // To enable:  set SCREENCAST_ENABLED=true (default)
+  // To disable: set SCREENCAST_ENABLED=false
+  // --------------------------------------------------------------------------
+  screencast: {
+    /** Master toggle: enable/disable screencast recording */
+    enabled:      getOptionalEnvVar('SCREENCAST_ENABLED', 'true') === 'true',
+
+    /** Show action annotations (click, fill, navigate labels) on the video */
+    showActions:  getOptionalEnvVar('SCREENCAST_SHOW_ACTIONS', 'true') === 'true',
+
+    /** Show chapter title cards at major test steps */
+    showChapters: getOptionalEnvVar('SCREENCAST_SHOW_CHAPTERS', 'true') === 'true',
+
+    /** Video quality: 0–100 (JPEG quality per frame, default 80) */
+    quality:      parseInt(getOptionalEnvVar('SCREENCAST_QUALITY', '80'), 10),
+
+    /** Video width in pixels */
+    width:        parseInt(getOptionalEnvVar('SCREENCAST_SIZE', '1280x720').split('x')[0] ?? '1280', 10),
+
+    /** Video height in pixels */
+    height:       parseInt(getOptionalEnvVar('SCREENCAST_SIZE', '1280x720').split('x')[1] ?? '720', 10),
+  },
+
+  // --------------------------------------------------------------------------
   // REPORTING
   // --------------------------------------------------------------------------
   // Controls the HTML execution report generated after every test run.

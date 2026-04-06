@@ -35,6 +35,9 @@ export { logger }                         from './helpers/logger';
 export { enhancedLogger }                 from './helpers/enhanced-logger';
 export { captureScreenshot, captureFailureScreenshot } from './helpers/screenshot';
 
+// Screencast (Playwright 1.59 — Agentic Video Receipts)
+export { ScreencastHelper, createScreencastHelper, isScreencastEnabled } from './helpers/screencast-helper';
+
 // JIRA XRAY
 export { createJiraApiClient, testJiraConnection } from './jira-xray/jira-auth';
 export { fetchTestCasesFromTestSet }               from './jira-xray/xray-test-set';

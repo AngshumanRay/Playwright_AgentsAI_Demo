@@ -45,6 +45,9 @@ import { logger } from '../helpers/logger';
 // Import enhanced logger — collects structured data for the HTML report
 import { enhancedLogger } from '../helpers/enhanced-logger';
 
+// Import Playwright 1.59 Screencast helper — agentic video receipts
+import { ScreencastHelper, isScreencastEnabled } from '../helpers/screencast-helper';
+
 // Import axe-core accessibility scanner
 import AxeBuilder from '@axe-core/playwright';
 
@@ -108,6 +111,34 @@ export const test = base.extend<XrayFixtures>({
     // Start performance timer for this test
     // -----------------------------------------------------------------------
     enhancedLogger.startTimer(xrayKey);
+
+    // -----------------------------------------------------------------------
+    // 🎬 SCREENCAST: Start recording (Playwright 1.59 Agentic Video Receipts)
+    // -----------------------------------------------------------------------
+    // The ScreencastHelper wraps the new page.screencast API to automatically:
+    //   - Record the browser screen as a .webm video
+    //   - Show action annotations (click, fill, navigate labels)
+    //   - Display chapter title cards at test start
+    //   - Show an "AI Agent" overlay badge for agentic transparency
+    //
+    // This creates visual evidence of every test execution — the cornerstone
+    // of agentic AI transparency. Recordings are saved to test-results/screencasts/
+    //
+    // Note: Screencast is only available for UI tests (tests that use `page`).
+    //       API-only tests don't have a browser page, so screencast is skipped.
+    // -----------------------------------------------------------------------
+    const screencast = new ScreencastHelper(page);
+    let screencastPath: string | null = null;
+
+    if (isScreencastEnabled()) {
+      screencastPath = await screencast.startRecording(xrayKey);
+
+      if (screencastPath) {
+        // Show the agentic AI overlay badge (top-left corner)
+        const env = process.env['TEST_ENVIRONMENT'] ?? 'staging';
+        await screencast.showAgenticOverlay(xrayKey, env);
+      }
+    }
 
     // -----------------------------------------------------------------------
     // Intercept all network requests to count them and measure bytes
@@ -231,6 +262,27 @@ export const test = base.extend<XrayFixtures>({
       xrayStatus = 'ABORTED';
     }
 
+    // -----------------------------------------------------------------------
+    // 🎬 SCREENCAST: Show result chapter & stop recording
+    // -----------------------------------------------------------------------
+    // Before stopping the recording, display a result card (✅ PASS / ❌ FAIL)
+    // and then stop to finalize the .webm video file.
+    // The recording path is stored alongside the screenshot for XRAY evidence.
+    // -----------------------------------------------------------------------
+    if (screencast.isActive()) {
+      // Hide the agentic overlay to reveal the result card clearly
+      await screencast.hideOverlays();
+
+      // Show the result chapter card (green/red banner)
+      const screencastErrorMsg = testInfo.errors.length > 0
+        ? testInfo.errors.map(e => e.message || String(e)).join('; ').substring(0, 200)
+        : undefined;
+      await screencast.showTestResult(xrayStatus, screencastErrorMsg);
+
+      // Stop the recording — saves the .webm file
+      screencastPath = await screencast.stopRecording();
+    }
+
     if (xrayKey !== 'UNTRACKED') {
       let screenshotPath: string | undefined;
       if (xrayStatus === 'FAIL') {
@@ -252,6 +304,7 @@ export const test = base.extend<XrayFixtures>({
         status:       xrayStatus,
         errorMessage,
         screenshotPath,
+        screencastPath: screencastPath ?? undefined,
         durationMs,
         startedAt,
         finishedAt,
